@@ -600,7 +600,9 @@
             </select>
           </div>
           <button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="salvarSaipos()">💾 Salvar e testar conexão</button>
+          <button class="btn btn-outline btn-sm" style="width:100%;margin-top:6px" onclick="diagnosticarEndpoints()">🔍 Diagnosticar endpoints de itens</button>
           <div id="saipos-status-msg" class="small" style="display:none;margin-top:10px"></div>
+          <div id="diag-result" style="display:none;margin-top:12px;background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;font-size:.75rem;font-family:monospace;color:var(--cream-dim);white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
         </div>
       </div>
     </div>
@@ -736,7 +738,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.3</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.4</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -1707,6 +1709,68 @@ function salvarParametros() { showToast('Parâmetros salvos!', 'success'); }
 function toggleToken() {
   const el = document.getElementById('cfg-saipos-token');
   el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+async function diagnosticarEndpoints() {
+  const BC    = window.BONITA_CONFIG?.saipos;
+  const gsUrl = document.getElementById('cfg-saipos-url')?.value?.trim() || BC?.gsUrl || '';
+  const token = document.getElementById('cfg-saipos-token')?.value?.trim() || BC?.token || '';
+
+  if (!gsUrl || !token) { showToast('Preencha URL e token primeiro', 'error'); return; }
+
+  const resultEl = document.getElementById('diag-result');
+  resultEl.style.display = 'block';
+  resultEl.textContent = '⏳ Testando endpoints... aguarde.\n';
+  showToast('Diagnosticando...', 'info');
+
+  const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+
+  // Pega uma janela de 3 dias recente para teste
+  const now = new Date();
+  const end   = new Date(now);
+  const start = new Date(now); start.setDate(now.getDate() - 3);
+  const fmt = d => d.toISOString().slice(0,19);
+
+  // Testa via Apps Script discover_items
+  try {
+    const params = new URLSearchParams({
+      token: bearerToken,
+      endpoint: 'discover_items',
+      start: fmt(start),
+      end: fmt(end),
+      limit: 1
+    });
+    const resp = await fetch(`${gsUrl}?${params}`);
+    const json = await resp.json();
+
+    let output = '=== RESULTADO DOS ENDPOINTS ===\n\n';
+    for (const [ep, res] of Object.entries(json)) {
+      const ok = res.status === 200 ? '✅' : '❌';
+      output += `${ok} ${ep}: HTTP ${res.status}\n`;
+      if (res.status === 200) {
+        output += `   Amostra: ${res.sample.slice(0,120)}\n`;
+      }
+      output += '\n';
+    }
+
+    // Identifica o que funciona
+    const funcionou = Object.entries(json).filter(([,r]) => r.status === 200);
+    if (funcionou.length > 0) {
+      output += `\n✅ ENDPOINT QUE FUNCIONA: ${funcionou.map(([ep]) => ep).join(', ')}\n`;
+      output += 'Me mande este resultado para corrigir o mapeamento!\n';
+      showToast(`Encontrado: ${funcionou[0][0]}`, 'success');
+    } else {
+      output += '\n⚠ Nenhum endpoint de itens encontrado.\n';
+      output += 'A API pode não expor itens com filtro de data.\n';
+      showToast('Nenhum endpoint de itens disponível', 'error');
+    }
+
+    resultEl.textContent = output;
+
+  } catch(e) {
+    resultEl.textContent = `❌ Erro ao diagnosticar: ${e.message}\n\nVerifique se o Apps Script v5 foi implantado.`;
+    showToast('Erro: ' + e.message, 'error');
+  }
 }
 
 // ══════════════════════════════════════════

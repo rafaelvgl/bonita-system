@@ -170,6 +170,25 @@
 .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
 @media(max-width:900px){ .grid-4{ grid-template-columns: repeat(2,1fr); } }
 @media(max-width:600px){ .grid-4,.grid-3{ grid-template-columns: 1fr; } }
+
+/* ── Day flags ── */
+.day-flags { display: flex; gap: 6px; flex-wrap: wrap; }
+.day-flag {
+  width: 44px; height: 36px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: transparent;
+  color: var(--text-faint); font-family: var(--font-body);
+  font-size: .75rem; font-weight: 400; cursor: pointer;
+  transition: all .18s; user-select: none;
+}
+.day-flag:hover { border-color: var(--border-strong); color: var(--cream); }
+.day-flag.active {
+  background: var(--red); border-color: var(--red);
+  color: var(--cream); font-weight: 500;
+}
+.day-flag[data-day="0"].active,
+.day-flag[data-day="6"].active {
+  background: var(--blue); border-color: var(--blue); color: var(--green-dark);
+}
 </style>
 </head>
 <body>
@@ -278,9 +297,9 @@
       <div class="card">
         <div class="card-title" style="margin-bottom:10px">Resumo cocção</div>
         <div id="coccao-resumo-container"><div class="faint small">Configure os preparados</div></div>
-        <div id="card-estoque-resumo" style="display:none; margin-top:16px">
+        <div id="card-estoque-resumo-dash" style="display:none; margin-top:16px">
           <div class="sep"></div>
-          <div id="estoque-resumo-content"></div>
+          <div id="estoque-resumo-content-dash"></div>
         </div>
       </div>
     </div>
@@ -414,7 +433,7 @@
   <div class="inner-page" id="page-coccao">
     <div class="section-header">
       <div>
-        <div class="section-title">Mapa Semanal de Cocção</div>
+        <div class="section-title">Mapa de Cocção</div>
         <div class="section-desc">Preparados — minimizando sessões, respeitando validade</div>
       </div>
       <div class="flex-gap">
@@ -422,18 +441,38 @@
         <button class="btn btn-primary btn-sm" onclick="gerarMapaCoccao()">✦ Gerar com IA</button>
       </div>
     </div>
-    <div class="card" style="margin-bottom:16px">
-      <div class="flex-between" style="margin-bottom:12px">
-        <div class="bold small">Preparados cadastrados</div>
+
+    <!-- Sub-tabs cocção -->
+    <div class="inner-tabs" style="margin-bottom:24px">
+      <button class="inner-tab active" onclick="showCoccaoTab('preparados',this)">📋 Preparados</button>
+      <button class="inner-tab" onclick="showCoccaoTab('agenda',this)">📅 Agenda da Semana</button>
+    </div>
+
+    <!-- Sub-page: Preparados -->
+    <div id="coccao-tab-preparados">
+      <div class="section-header">
+        <div>
+          <div class="section-title" style="font-size:1.1rem">Preparados cadastrados</div>
+          <div class="section-desc">Itens que precisam ser pré-preparados na cozinha</div>
+        </div>
         <button class="btn btn-secondary btn-sm" onclick="addPreparado()">+ Adicionar</button>
       </div>
-      <div id="preparados-list" class="grid-3" style="gap:10px"></div>
+      <div id="preparados-list" class="grid-3" style="gap:12px"></div>
+      <div class="card" style="margin-top:16px">
+        <div class="bold small" style="margin-bottom:8px">Conservação e temperatura</div>
+        <div id="obs-conservacao" class="small faint" style="line-height:1.9">Gere o mapa com IA para ver recomendações de temperatura, validade e armazenamento.</div>
+      </div>
     </div>
-    <div class="section-title" style="font-size:1rem;margin-bottom:12px">Agenda da semana</div>
-    <div class="week-grid" id="week-grid-coccao"></div>
-    <div class="card">
-      <div class="bold small" style="margin-bottom:8px">Conservação e temperatura</div>
-      <div id="obs-conservacao" class="small faint" style="line-height:1.7">Gere o mapa com IA para ver recomendações.</div>
+
+    <!-- Sub-page: Agenda -->
+    <div id="coccao-tab-agenda" style="display:none">
+      <div class="section-header">
+        <div>
+          <div class="section-title" style="font-size:1.1rem">Agenda semanal</div>
+          <div class="section-desc">Distribuição otimizada por validade de cada preparado</div>
+        </div>
+      </div>
+      <div class="week-grid" id="week-grid-coccao"></div>
     </div>
   </div>
 
@@ -573,27 +612,96 @@
     </div>
     <div class="cfg-section">
       <div class="cfg-title">🚚 Fornecedores</div>
-      <div class="grid-2">
-        <div>
-          <div style="margin-bottom:12px">
+
+      <!-- Fornecedor 1 -->
+      <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)">
+        <div class="grid-2" style="gap:12px;margin-bottom:12px">
+          <div>
             <label class="faint" style="font-size:.68rem;letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:5px">Fornecedor principal (secos)</label>
             <input class="input-field" id="cfg-forn1" value="Bispo">
           </div>
           <div>
+            <label class="faint" style="font-size:.68rem;letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:5px">Tipo</label>
+            <select class="input-field" id="cfg-forn1-tipo" style="height:40px">
+              <option value="secos" selected>Secos e molhados</option>
+              <option value="hortifruti">Hortifruti</option>
+              <option value="proteinas">Proteínas</option>
+              <option value="embalagens">Embalagens</option>
+              <option value="geral">Geral</option>
+            </select>
+          </div>
+        </div>
+        <label class="faint" style="font-size:.68rem;letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:8px">Dias de entrega</label>
+        <div class="day-flags" id="dias-forn1">
+          <button type="button" class="day-flag" data-day="0" onclick="toggleDayFlag(this,'dias-forn1')">Dom</button>
+          <button type="button" class="day-flag" data-day="1" onclick="toggleDayFlag(this,'dias-forn1')">Seg</button>
+          <button type="button" class="day-flag active" data-day="2" onclick="toggleDayFlag(this,'dias-forn1')">Ter</button>
+          <button type="button" class="day-flag" data-day="3" onclick="toggleDayFlag(this,'dias-forn1')">Qua</button>
+          <button type="button" class="day-flag active" data-day="4" onclick="toggleDayFlag(this,'dias-forn1')">Qui</button>
+          <button type="button" class="day-flag" data-day="5" onclick="toggleDayFlag(this,'dias-forn1')">Sex</button>
+          <button type="button" class="day-flag" data-day="6" onclick="toggleDayFlag(this,'dias-forn1')">Sáb</button>
+        </div>
+      </div>
+
+      <!-- Fornecedor 2 -->
+      <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)">
+        <div class="grid-2" style="gap:12px;margin-bottom:12px">
+          <div>
             <label class="faint" style="font-size:.68rem;letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:5px">Fornecedor secundário (secos)</label>
             <input class="input-field" id="cfg-forn2" value="Mega G">
           </div>
+          <div>
+            <label class="faint" style="font-size:.68rem;letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:5px">Tipo</label>
+            <select class="input-field" id="cfg-forn2-tipo" style="height:40px">
+              <option value="secos" selected>Secos e molhados</option>
+              <option value="hortifruti">Hortifruti</option>
+              <option value="proteinas">Proteínas</option>
+              <option value="embalagens">Embalagens</option>
+              <option value="geral">Geral</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <label class="faint" style="font-size:.68rem;letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:5px">Visitas ao hortifruti por semana</label>
-          <select class="input-field" id="cfg-horti-dias" style="height:40px">
-            <option value="1">1x por semana</option>
-            <option value="2" selected>2x por semana</option>
-            <option value="3">3x por semana</option>
-          </select>
+        <label class="faint" style="font-size:.68rem;letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:8px">Dias de entrega</label>
+        <div class="day-flags" id="dias-forn2">
+          <button type="button" class="day-flag" data-day="0" onclick="toggleDayFlag(this,'dias-forn2')">Dom</button>
+          <button type="button" class="day-flag" data-day="1" onclick="toggleDayFlag(this,'dias-forn2')">Seg</button>
+          <button type="button" class="day-flag" data-day="2" onclick="toggleDayFlag(this,'dias-forn2')">Ter</button>
+          <button type="button" class="day-flag active" data-day="3" onclick="toggleDayFlag(this,'dias-forn2')">Qua</button>
+          <button type="button" class="day-flag" data-day="4" onclick="toggleDayFlag(this,'dias-forn2')">Qui</button>
+          <button type="button" class="day-flag active" data-day="5" onclick="toggleDayFlag(this,'dias-forn2')">Sex</button>
+          <button type="button" class="day-flag" data-day="6" onclick="toggleDayFlag(this,'dias-forn2')">Sáb</button>
         </div>
       </div>
-      <button class="btn btn-secondary btn-sm" style="margin-top:12px" onclick="salvarFornecedores()">💾 Salvar fornecedores</button>
+
+      <!-- Hortifruti -->
+      <div>
+        <div class="grid-2" style="gap:12px;margin-bottom:12px">
+          <div>
+            <label class="faint" style="font-size:.68rem;letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:5px">Hortifruti</label>
+            <input class="input-field" id="cfg-forn-horti" value="Mercado local">
+          </div>
+          <div>
+            <label class="faint" style="font-size:.68rem;letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:5px">Visitas por semana</label>
+            <select class="input-field" id="cfg-horti-dias" style="height:40px">
+              <option value="1">1x por semana</option>
+              <option value="2" selected>2x por semana</option>
+              <option value="3">3x por semana</option>
+            </select>
+          </div>
+        </div>
+        <label class="faint" style="font-size:.68rem;letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:8px">Dias de compra preferidos</label>
+        <div class="day-flags" id="dias-horti">
+          <button type="button" class="day-flag" data-day="0" onclick="toggleDayFlag(this,'dias-horti')">Dom</button>
+          <button type="button" class="day-flag active" data-day="1" onclick="toggleDayFlag(this,'dias-horti')">Seg</button>
+          <button type="button" class="day-flag" data-day="2" onclick="toggleDayFlag(this,'dias-horti')">Ter</button>
+          <button type="button" class="day-flag" data-day="3" onclick="toggleDayFlag(this,'dias-horti')">Qua</button>
+          <button type="button" class="day-flag active" data-day="4" onclick="toggleDayFlag(this,'dias-horti')">Qui</button>
+          <button type="button" class="day-flag" data-day="5" onclick="toggleDayFlag(this,'dias-horti')">Sex</button>
+          <button type="button" class="day-flag" data-day="6" onclick="toggleDayFlag(this,'dias-horti')">Sáb</button>
+        </div>
+      </div>
+
+      <button class="btn btn-secondary btn-sm" style="margin-top:16px" onclick="salvarFornecedores()">💾 Salvar fornecedores</button>
     </div>
     <div class="cfg-section">
       <div class="cfg-title">✦ Parâmetros de Projeção</div>
@@ -639,11 +747,49 @@
 // ══════════════════════════════════════════
 function showInnerPage(page, btn) {
   document.querySelectorAll('.inner-page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.inner-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.inner-tabs > .inner-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   btn.classList.add('active');
-  if (page === 'coccao') renderWeekGrid();
+  if (page === 'coccao') {
+    // Abre sempre na sub-tab Preparados com cards visuais
+    const firstBtn = document.querySelector('#page-coccao .inner-tab');
+    showCoccaoTab('preparados', firstBtn);
+  }
   if (page === 'config-pg') renderPreparadosConfig();
+}
+
+function showCoccaoTab(tab, btn) {
+  document.getElementById('coccao-tab-preparados').style.display = tab === 'preparados' ? 'block' : 'none';
+  document.getElementById('coccao-tab-agenda').style.display     = tab === 'agenda'     ? 'block' : 'none';
+  document.querySelectorAll('#page-coccao .inner-tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  if (tab === 'preparados') renderPreparadosCards();
+  if (tab === 'agenda')     renderWeekGrid();
+}
+
+function renderPreparadosCards() {
+  const preparados = STATE.preparados;
+  const html = preparados.map((p, i) => {
+    const valClass = p.validade_dias <= 2 ? 'badge-red' : p.validade_dias <= 4 ? 'badge-cream' : 'badge-green';
+    const catColor = p.categoria === 'proteína' ? '#f87171'
+                   : p.categoria === 'vegetal'  ? '#4ade80'
+                   : p.categoria === 'molho'    ? 'var(--blue)'
+                   : p.categoria === 'massa'    ? '#fac800'
+                   : 'var(--cream-dim)';
+    return `<div class="card" style="padding:16px;display:flex;flex-direction:column;gap:8px">
+      <div class="flex-between">
+        <div class="bold" style="color:var(--cream);font-size:.9rem">${p.nome}</div>
+        <span class="badge ${valClass}">${p.validade_dias}d val.</span>
+      </div>
+      <div class="small" style="color:var(--cream-dim)">${p.qtd_base}</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
+        <span style="width:8px;height:8px;border-radius:50%;background:${catColor};flex-shrink:0;display:inline-block"></span>
+        <span class="small faint" style="text-transform:capitalize">${p.categoria}</span>
+      </div>
+    </div>`;
+  }).join('');
+  const list = document.getElementById('preparados-list');
+  if (list) list.innerHTML = html || '<div class="faint small" style="padding:16px">Nenhum preparado cadastrado. Acesse ⚙ Config para adicionar.</div>';
 }
 
 // ══════════════════════════════════════════
@@ -757,32 +903,73 @@ async function syncSaipos() {
 
     if (!allSales.length) throw new Error('Nenhum pedido retornado');
 
-    // Mapeia search_sales → historico interno
-    // search_sales retorna linhas de itens, cada linha tem campos do pedido + produto
-    STATE.historico = allSales
-      .filter(r => r.canceled !== 'Y')
-      .map(r => {
-        const data = (r.created_at || r.sale_date || '').slice(0,10);
-        if (!data) return null;
+    // DIAGNÓSTICO — abre o console (F12) e veja os campos do 1º pedido
+    if (allSales[0]) {
+      console.log('🔍 Saipos search_sales — campos do 1º pedido:', Object.keys(allSales[0]));
+      console.log('🔍 Saipos search_sales — 1º pedido completo:', allSales[0]);
+      const items = allSales[0].sale_items || allSales[0].items || allSales[0].products || [];
+      if (items.length) {
+        console.log('🔍 1º item do pedido:', items[0]);
+        console.log('🔍 Campos do item:', Object.keys(items[0]));
+      } else {
+        console.warn('⚠ Pedido sem sale_items/items — campos disponíveis no nível do pedido:', Object.keys(allSales[0]));
+      }
+    }
 
-        // Sabor: tenta campos do produto na linha de item
-        const sabor = r.product_description || r.desc_product ||
-                      r.product_name || r.item_name ||
-                      r.desc_sale_type || 'Desconhecido';
-        // Tamanho
-        const tamanho = r.product_complement_description ||
-                        r.size || r.tamanho || 'G';
-        return {
+    // Mapeia search_sales → historico interno
+    // Cada pedido pode ter múltiplos itens (sale_items / items)
+    // Expandimos para ter uma entrada por item, preservando a data do pedido
+    STATE.historico = [];
+    allSales
+      .filter(r => r.canceled !== 'Y' && r.canceled !== true)
+      .forEach(r => {
+        const data = (r.created_at || r.sale_date || '').slice(0,10);
+        if (!data) return;
+        const base = {
           data,
-          sabor:   sabor.trim(),
-          tamanho: tamanho.trim(),
-          valor:   parseFloat(r.total_amount || r.total_price || r.valor || 0),
-          qtd:     parseInt(r.quantity || r.qtd || 1),
+          valor:   parseFloat(r.total_amount || r.total_price || 0),
           tipo:    parseInt(r.id_sale_type || 1),
           canal:   r.partner_sale?.partner_name || r.desc_sale_type || 'Próprio',
         };
-      })
-      .filter(Boolean);
+
+        // Tenta extrair itens do pedido
+        const items = r.sale_items || r.items || r.products || [];
+
+        if (items.length > 0) {
+          // Uma entrada por item do pedido
+          items.forEach(item => {
+            const sabor =
+              item.desc_product          ||
+              item.product_description   ||
+              item.product_name          ||
+              item.name                  ||
+              item.description           ||
+              item.title                 || 'Desconhecido';
+            const tamanho =
+              item.complement_description ||
+              item.product_complement     ||
+              item.size                   ||
+              item.tamanho                || 'G';
+            STATE.historico.push({
+              ...base,
+              sabor:   sabor.trim(),
+              tamanho: tamanho.trim(),
+              qtd:     parseInt(item.quantity || item.qtd || 1),
+            });
+          });
+        } else {
+          // Pedido sem itens detalhados — usa campos do nível do pedido
+          const sabor =
+            r.product_description || r.desc_product ||
+            r.product_name        || r.item_name    || 'Desconhecido';
+          STATE.historico.push({
+            ...base,
+            sabor:   sabor.trim(),
+            tamanho: r.size || r.tamanho || 'G',
+            qtd:     1,
+          });
+        }
+      });
 
     STATE.synced = true;
     document.getElementById('dot-saipos').className = 'sdot ok';
@@ -1016,18 +1203,6 @@ function renderWeekGrid() {
     </div>`;
   }).join('');
   document.getElementById('week-grid-coccao').innerHTML = html;
-
-  // Preparados list
-  const prepHtml = preparados.map((p,i)=>`
-    <div class="card" style="padding:12px">
-      <div class="flex-between">
-        <div class="bold" style="font-size:13px">${p.nome}</div>
-        <span class="badge badge-${p.validade_dias<=2?'red':p.validade_dias<=3?'amber':'green'}">${p.validade_dias}d validade</span>
-      </div>
-      <div class="small muted mt-16">${p.qtd_base} · ${p.categoria}</div>
-    </div>`).join('');
-  const prepList = document.getElementById('preparados-list');
-  if (prepList) prepList.innerHTML = prepHtml;
 
   document.getElementById('obs-conservacao').innerHTML = `
     <div class="grid-2" style="gap:10px; font-size:12px; line-height:1.7">
@@ -1516,7 +1691,29 @@ function salvarSaipos() {
   setTimeout(() => syncSaipos(), 300);
 }
 
-function salvarFornecedores() { showToast('Fornecedores salvos!', 'success'); }
+function toggleDayFlag(btn, groupId) {
+  btn.classList.toggle('active');
+}
+
+function getDiasAtivos(groupId) {
+  return [...document.querySelectorAll(`#${groupId} .day-flag.active`)]
+    .map(b => parseInt(b.dataset.day));
+}
+
+function salvarFornecedores() {
+  STATE.fornecedores = {
+    forn1:      document.getElementById('cfg-forn1')?.value || 'Bispo',
+    forn1Tipo:  document.getElementById('cfg-forn1-tipo')?.value || 'secos',
+    forn1Dias:  getDiasAtivos('dias-forn1'),
+    forn2:      document.getElementById('cfg-forn2')?.value || 'Mega G',
+    forn2Tipo:  document.getElementById('cfg-forn2-tipo')?.value || 'secos',
+    forn2Dias:  getDiasAtivos('dias-forn2'),
+    horti:      document.getElementById('cfg-forn-horti')?.value || 'Mercado local',
+    hortiDias:  getDiasAtivos('dias-horti'),
+    hortiFreq:  document.getElementById('cfg-horti-dias')?.value || '2',
+  };
+  showToast('Fornecedores salvos!', 'success');
+}
 function salvarParametros() { showToast('Parâmetros salvos!', 'success'); }
 function toggleToken() {
   const el = document.getElementById('cfg-saipos-token');
@@ -5551,91 +5748,108 @@ const ANALISE_ESTOQUE = {"criticos": [{"ingrediente": "Muçarela Porcionada 100g
 STATE.estoque = ESTOQUE_BONITA;
 
 function carregarEstoqueReal() {
-  // Renderizar tabela completa
+  const nCrit = ANALISE_ESTOQUE.criticos.length;
+  const nAt   = ANALISE_ESTOQUE.atencao.length;
+  const nOk   = ANALISE_ESTOQUE.ok.length;
+
+  // ── 1. Tabela de ingredientes (aba Estoque) ──────────────
   const allItems = [
     ...ANALISE_ESTOQUE.criticos.map(i => ({...i, _status: 'critico'})),
-    ...ANALISE_ESTOQUE.atencao.map(i => ({...i, _status: 'atencao'})),
-    ...ANALISE_ESTOQUE.ok.map(i => ({...i, _status: 'ok'})),
+    ...ANALISE_ESTOQUE.atencao.map(i  => ({...i, _status: 'atencao'})),
+    ...ANALISE_ESTOQUE.ok.map(i       => ({...i, _status: 'ok'})),
   ];
-  
-  const html_rows = allItems.map(item => {
-    const badgeCls = item._status === 'critico' ? 'badge-red' : item._status === 'atencao' ? 'badge-amber' : 'badge-green';
-    const label = item._status === 'critico' ? 'Crítico' : item._status === 'atencao' ? 'Atenção' : 'OK';
+  const rows = allItems.map(item => {
+    const badgeCls = item._status === 'critico' ? 'badge-red' : item._status === 'atencao' ? 'badge-blue' : 'badge-green';
+    const label    = item._status === 'critico' ? 'Crítico'   : item._status === 'atencao'  ? 'Atenção'    : 'OK';
     const saldoStr = item.saldo !== undefined ? (item.saldo >= 0 ? `+${item.saldo.toFixed(2)}` : item.saldo.toFixed(2)) : '–';
-    const saldoColor = item.saldo !== undefined && item.saldo < 0 ? 'color:var(--red);font-weight:600' : '';
+    const saldoStyle = item.saldo !== undefined && item.saldo < 0 ? 'color:#f87171;font-weight:600' : 'color:#4ade80';
     return `<tr>
-      <td class="bold">${item.ingrediente}</td>
+      <td class="bold" style="color:var(--cream)">${item.ingrediente}</td>
       <td>${(item.estoque || 0).toFixed(2)} ${item.unidade || ''}</td>
       <td>${(item.necessario_7d || 0).toFixed(2)} ${item.unidade || ''}</td>
-      <td style="${saldoColor}">${saldoStr}</td>
+      <td style="${saldoStyle}">${saldoStr}</td>
       <td><span class="badge ${badgeCls}">${label}</span></td>
     </tr>`;
   }).join('');
-  
   const tbody = document.getElementById('tbody-estoque');
-  if (tbody) tbody.innerHTML = html_rows || '<tr><td colspan="5" style="text-align:center;padding:20px">Nenhum item</td></tr>';
-  
-  // Atualizar KPIs
-  const nCrit = ANALISE_ESTOQUE.criticos.length;
-  const nAt = ANALISE_ESTOQUE.atencao.length;
-  document.getElementById('kpi-criticos').textContent = nCrit;
-  
-  if (nCrit > 0) document.getElementById('badge-estoque').style.display = 'inline-flex';
-  
-  // Resumo card
-  const resumo = document.getElementById('estoque-resumo-content');
-  if (resumo) {
-    resumo.innerHTML = `
-      <div class="grid-3" style="gap:10px">
-        <div style="text-align:center">
-          <div style="font-size:28px;font-weight:700;color:var(--red)">${nCrit}</div>
-          <div class="small muted">Críticos</div>
+  if (tbody) tbody.innerHTML = rows || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-faint)">Nenhum item</td></tr>';
+
+  // ── 2. KPI críticos ──────────────────────────────────────
+  const kpiEl = document.getElementById('kpi-criticos');
+  if (kpiEl) kpiEl.textContent = nCrit;
+  const badgeEl = document.getElementById('badge-estoque');
+  if (badgeEl && nCrit > 0) { badgeEl.style.display = 'inline-flex'; badgeEl.textContent = nCrit; }
+
+  // ── 3. Resumo card (aba Estoque — id único: card-estoque-resumo) ──
+  const resumoCard = document.getElementById('card-estoque-resumo');
+  const resumoContent = document.getElementById('estoque-resumo-content');
+  if (resumoContent) {
+    resumoContent.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center">
+        <div>
+          <div style="font-size:2rem;font-weight:700;color:#f87171;font-family:var(--font-display)">${nCrit}</div>
+          <div class="small faint">Críticos</div>
         </div>
-        <div style="text-align:center">
-          <div style="font-size:28px;font-weight:700;color:var(--amber)">${nAt}</div>
-          <div class="small muted">Atenção</div>
+        <div>
+          <div style="font-size:2rem;font-weight:700;color:#fac800;font-family:var(--font-display)">${nAt}</div>
+          <div class="small faint">Atenção</div>
         </div>
-        <div style="text-align:center">
-          <div style="font-size:28px;font-weight:700;color:var(--green-light)">${ANALISE_ESTOQUE.ok.length}</div>
-          <div class="small muted">OK</div>
+        <div>
+          <div style="font-size:2rem;font-weight:700;color:#4ade80;font-family:var(--font-display)">${nOk}</div>
+          <div class="small faint">OK</div>
         </div>
       </div>
       <div class="sep"></div>
-      <div class="small muted">Posição: 22/05/2026 · ${ESTOQUE_BONITA.length} itens</div>`;
-    document.getElementById('card-estoque-resumo').style.display = 'block';
+      <div class="small faint">Posição: 22/05/2026 · ${ESTOQUE_BONITA.length} itens</div>`;
   }
-  
-  // Alert
+  if (resumoCard) resumoCard.style.display = 'block';
+
+  // ── 4. Alert status ──────────────────────────────────────
   const alertEl = document.getElementById('alert-estoque-status');
   if (alertEl) {
     alertEl.className = nCrit > 0 ? 'alert alert-danger' : 'alert alert-success';
-    alertEl.innerHTML = nCrit > 0 
-      ? `<span class="alert-icon">⚠</span><span><strong>${nCrit} itens críticos</strong> — vão faltar nos próximos 7 dias. Veja a tabela abaixo.</span>`
-      : `<span class="alert-icon">✓</span><span>Estoque importado — ${ESTOQUE_BONITA.length} itens · posição 22/05/2026</span>`;
+    alertEl.innerHTML = nCrit > 0
+      ? `<span>⚠</span><span><strong>${nCrit} itens críticos</strong> — vão faltar nos próximos 7 dias.</span>`
+      : `<span>✓</span><span>Estoque carregado — ${ESTOQUE_BONITA.length} itens · 22/05/2026</span>`;
   }
-  
-  // Upload zone update
+
+  // ── 5. Upload zone ───────────────────────────────────────
   const uz = document.getElementById('upload-zone-estoque');
   if (uz) {
     uz.innerHTML = `<div class="upload-icon">✅</div>
       <div class="upload-title">Estoque carregado — 22/05/2026</div>
       <div class="upload-hint">${ESTOQUE_BONITA.length} ingredientes · ${nCrit} críticos · Clique para atualizar</div>`;
-    uz.style.borderColor = nCrit > 0 ? 'var(--red)' : 'var(--green-light)';
-    uz.style.background = nCrit > 0 ? 'var(--red-pale)' : 'var(--green-pale)';
+    uz.style.borderColor = nCrit > 0 ? 'var(--red)' : '#4ade80';
+    uz.style.background  = nCrit > 0 ? 'rgba(214,69,61,0.08)' : 'rgba(74,222,128,0.06)';
   }
-  
-  // Alertas no dashboard
+
+  // ── 6. Alertas no Dashboard ──────────────────────────────
   const alertas = document.getElementById('alertas-container');
   if (alertas) {
-    const top3 = ANALISE_ESTOQUE.criticos.slice(0,3);
+    const top3 = ANALISE_ESTOQUE.criticos.slice(0, 3);
     const alertsHtml = top3.map(c => `
-      <div class="alert alert-danger">
-        <span class="alert-icon">⚠</span>
-        <div><strong>${c.ingrediente}</strong> — estoque: ${c.estoque.toFixed(2)}${c.unidade} · precisa: ${c.necessario_7d.toFixed(2)}${c.unidade} · <strong>falta ${Math.abs(c.saldo).toFixed(2)}${c.unidade}</strong></div>
+      <div class="alert alert-danger" style="margin-bottom:8px">
+        <span>⚠</span>
+        <div><strong>${c.ingrediente}</strong> — estoque: ${c.estoque.toFixed(2)} ${c.unidade} · precisa: ${c.necessario_7d.toFixed(2)} ${c.unidade} · <strong>falta ${Math.abs(c.saldo).toFixed(2)} ${c.unidade}</strong></div>
       </div>`).join('');
-    const moreHtml = nCrit > 3 ? `<div class="alert alert-warning"><span class="alert-icon">+</span><span>Mais ${nCrit - 3} itens críticos — veja a aba Estoque</span></div>` : '';
+    const moreHtml = nCrit > 3
+      ? `<div class="alert alert-warning"><span>+${nCrit - 3}</span><span>mais itens críticos — veja a aba Estoque</span></div>`
+      : '';
     alertas.innerHTML = alertsHtml + moreHtml;
   }
+
+  // ── 7. Resumo no Dashboard (card-estoque-resumo-dash) ────
+  const dashCard    = document.getElementById('card-estoque-resumo-dash');
+  const dashContent = document.getElementById('estoque-resumo-content-dash');
+  if (dashContent) {
+    dashContent.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center">
+        <div><div style="font-size:1.6rem;font-weight:700;color:#f87171">${nCrit}</div><div class="small faint">Críticos</div></div>
+        <div><div style="font-size:1.6rem;font-weight:700;color:#fac800">${nAt}</div><div class="small faint">Atenção</div></div>
+        <div><div style="font-size:1.6rem;font-weight:700;color:#4ade80">${nOk}</div><div class="small faint">OK</div></div>
+      </div>`;
+  }
+  if (dashCard) dashCard.style.display = 'block';
 }
 
 // ══════════════════════════════════════════

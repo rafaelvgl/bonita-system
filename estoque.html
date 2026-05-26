@@ -736,7 +736,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.1</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.2</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -1203,12 +1203,12 @@ function renderWeekGrid() {
 
 function renderPreparadosConfig() {
   const html = STATE.preparados.map((p,i)=>`
-    <div class="flex-gap" style="margin-bottom:10px">
-      <input class="input" style="flex:2" value="${p.nome}" onchange="STATE.preparados[${i}].nome=this.value">
-      <input class="input" style="width:100px" value="${p.qtd_base}" placeholder="Qtd base" onchange="STATE.preparados[${i}].qtd_base=this.value">
-      <input type="number" class="input" style="width:80px" value="${p.validade_dias}" min="1" max="10" onchange="STATE.preparados[${i}].validade_dias=+this.value">
-      <span class="small muted" style="white-space:nowrap">dias val.</span>
-      <button class="btn btn-danger btn-sm" onclick="removerPreparado(${i})">✕</button>
+    <div class="flex-gap" style="margin-bottom:10px;flex-wrap:wrap">
+      <input class="input-field" style="flex:2;min-width:160px" value="${p.nome}" placeholder="Nome do preparado" onchange="STATE.preparados[${i}].nome=this.value">
+      <input class="input-field" style="width:130px;flex:none" value="${p.qtd_base}" placeholder="Qtd base" onchange="STATE.preparados[${i}].qtd_base=this.value">
+      <input type="number" class="input-field" style="width:70px;flex:none" value="${p.validade_dias}" min="1" max="14" onchange="STATE.preparados[${i}].validade_dias=+this.value">
+      <span class="small faint" style="white-space:nowrap;align-self:center">dias val.</span>
+      <button class="btn btn-outline btn-sm" onclick="removerPreparado(${i})" style="color:#f87171;border-color:rgba(248,113,113,.3);flex:none">✕</button>
     </div>`).join('');
   document.getElementById('cfg-preparados-list').innerHTML = html;
 }

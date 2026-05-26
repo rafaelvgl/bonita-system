@@ -896,49 +896,24 @@ async function syncSaipos() {
     }
 
     let allSales = [];
-    let allItems = [];
-
     for (let w = 0; w < windows.length; w++) {
       const { start, end } = windows[w];
       showToast(`Buscando janela ${w+1}/${windows.length}...`, 'info');
-
-      // Busca pedidos (para projeção por dia e valor)
+      // Apps Script v4 já retorna search_sales enriquecido com sale_items
       const sales = await fetchEndpointEstoque(gsUrl, token, 'search_sales', start, end);
       allSales.push(...sales);
-
-      // Busca itens do período (para sabores) — endpoint separado
-      try {
-        const items = await fetchEndpointEstoque(gsUrl, token, 'search_sale_items', start, end);
-        allItems.push(...items);
-      } catch(e) {
-        // Se search_sale_items não existir, tenta sale_items
-        try {
-          const items2 = await fetchEndpointEstoque(gsUrl, token, 'sale_items', start, end);
-          allItems.push(...items2);
-        } catch(e2) {
-          console.warn('Itens não disponíveis para janela', w+1, e2.message);
-        }
-      }
     }
 
     if (!allSales.length) throw new Error('Nenhum pedido retornado');
 
-    // Log diagnóstico do 1º item — remova depois de confirmar os campos
-    if (allItems.length) {
-      console.log('🔍 sale_items — campos:', Object.keys(allItems[0]));
-      console.log('🔍 sale_items — 1º item:', allItems[0]);
+    // Diagnóstico: mostra campos do 1º item se existir
+    const primeiroComItens = allSales.find(r => r.sale_items?.length > 0);
+    if (primeiroComItens) {
+      console.log('✓ Itens encontrados. Campos:', Object.keys(primeiroComItens.sale_items[0]));
+      console.log('✓ 1º item:', primeiroComItens.sale_items[0]);
     } else {
-      console.warn('⚠ Nenhum item retornado — sabores virão dos pedidos');
+      console.warn('⚠ Nenhum pedido tem sale_items — Apps Script ainda não foi atualizado para v4?');
     }
-
-    // Mapa de itens por id_sale para join com pedidos
-    const itemsBySale = {};
-    allItems.forEach(item => {
-      const sid = item.id_sale || item.sale_id;
-      if (!sid) return;
-      if (!itemsBySale[sid]) itemsBySale[sid] = [];
-      itemsBySale[sid].push(item);
-    });
 
     // Monta histórico: uma entrada por item (sabor) por pedido
     STATE.historico = [];
@@ -949,8 +924,8 @@ async function syncSaipos() {
         if (!data) return;
         const canal = r.partner_sale?.desc_partner_sale ||
                       r.partner_sale?.partner_name      ||
-                      (r.id_sale_type === 1 ? 'Delivery' : 'Balcão');
-        const items = itemsBySale[r.id_sale] || r.sale_items || [];
+                      (parseInt(r.id_sale_type) === 1 ? 'Delivery' : 'Balcão');
+        const items = r.sale_items || [];
 
         if (items.length > 0) {
           items.forEach(item => {
@@ -971,7 +946,7 @@ async function syncSaipos() {
             });
           });
         } else {
-          // Sem itens: registra o pedido sem sabor para manter contagem
+          // Pedido sem itens (Apps Script antigo ou erro)
           STATE.historico.push({
             data,
             sabor:   '(sem detalhe)',

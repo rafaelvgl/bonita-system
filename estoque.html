@@ -736,7 +736,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.2</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.3</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -889,30 +889,32 @@ async function syncSaipos() {
   try {
     const now = new Date();
     const windows = [];
-    for (let i = 0; i < dias; i += 14) {
+    // Janelas de 7 dias (mais seguro contra rate limit)
+    for (let i = 0; i < dias; i += 7) {
       const end   = new Date(now); end.setDate(now.getDate() - i);
-      const start = new Date(now); start.setDate(now.getDate() - Math.min(i + 14, dias));
+      const start = new Date(now); start.setDate(now.getDate() - Math.min(i + 7, dias));
       windows.push({ start, end });
     }
 
     let allSales = [];
     for (let w = 0; w < windows.length; w++) {
       const { start, end } = windows[w];
-      showToast(`Buscando janela ${w+1}/${windows.length}...`, 'info');
-      // Apps Script v4 já retorna search_sales enriquecido com sale_items
+      showToast(`Janela ${w+1}/${windows.length}...`, 'info');
       const sales = await fetchEndpointEstoque(gsUrl, token, 'search_sales', start, end);
       allSales.push(...sales);
+      // Pausa 300ms entre janelas para não disparar rate limit
+      if (w < windows.length - 1) await new Promise(r => setTimeout(r, 300));
     }
 
     if (!allSales.length) throw new Error('Nenhum pedido retornado');
 
-    // Diagnóstico: mostra campos do 1º item se existir
-    const primeiroComItens = allSales.find(r => r.sale_items?.length > 0);
-    if (primeiroComItens) {
-      console.log('✓ Itens encontrados. Campos:', Object.keys(primeiroComItens.sale_items[0]));
-      console.log('✓ 1º item:', primeiroComItens.sale_items[0]);
+    // Diagnóstico: verifica se vieram itens enriquecidos pelo Apps Script v5
+    const comItens = allSales.filter(r => r.sale_items?.length > 0);
+    console.log(`Pedidos: ${allSales.length} | Com itens: ${comItens.length}`);
+    if (comItens.length > 0) {
+      console.log('✓ Campos do 1º item:', Object.keys(comItens[0].sale_items[0]));
     } else {
-      console.warn('⚠ Nenhum pedido tem sale_items — Apps Script ainda não foi atualizado para v4?');
+      console.warn('⚠ Apps Script v5 não retornou itens — verifique os logs em script.google.com');
     }
 
     // Monta histórico: uma entrada por item (sabor) por pedido
@@ -946,7 +948,6 @@ async function syncSaipos() {
             });
           });
         } else {
-          // Pedido sem itens (Apps Script antigo ou erro)
           STATE.historico.push({
             data,
             sabor:   '(sem detalhe)',

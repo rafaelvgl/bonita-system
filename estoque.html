@@ -903,70 +903,55 @@ async function syncSaipos() {
 
     if (!allSales.length) throw new Error('Nenhum pedido retornado');
 
-    // DIAGNÓSTICO — abre o console (F12) e veja os campos do 1º pedido
-    if (allSales[0]) {
-      console.log('🔍 Saipos search_sales — campos do 1º pedido:', Object.keys(allSales[0]));
-      console.log('🔍 Saipos search_sales — 1º pedido completo:', allSales[0]);
-      const items = allSales[0].sale_items || allSales[0].items || allSales[0].products || [];
-      if (items.length) {
-        console.log('🔍 1º item do pedido:', items[0]);
-        console.log('🔍 Campos do item:', Object.keys(items[0]));
-      } else {
-        console.warn('⚠ Pedido sem sale_items/items — campos disponíveis no nível do pedido:', Object.keys(allSales[0]));
-      }
-    }
-
     // Mapeia search_sales → historico interno
-    // Cada pedido pode ter múltiplos itens (sale_items / items)
-    // Expandimos para ter uma entrada por item, preservando a data do pedido
+    // Cada pedido tem sale_items[] (enriquecido pelo Apps Script atualizado)
     STATE.historico = [];
     allSales
       .filter(r => r.canceled !== 'Y' && r.canceled !== true)
       .forEach(r => {
-        const data = (r.created_at || r.sale_date || '').slice(0,10);
+        const data = (r.created_at || r.shift_date || '').slice(0, 10);
         if (!data) return;
-        const base = {
-          data,
-          valor:   parseFloat(r.total_amount || r.total_price || 0),
-          tipo:    parseInt(r.id_sale_type || 1),
-          canal:   r.partner_sale?.partner_name || r.desc_sale_type || 'Próprio',
-        };
 
-        // Tenta extrair itens do pedido
-        const items = r.sale_items || r.items || r.products || [];
+        const canal = r.partner_sale?.desc_partner_sale ||
+                      r.partner_sale?.partner_name      ||
+                      (r.id_sale_type === 1 ? 'Delivery' : 'Balcão');
+
+        const items = r.sale_items || r.items || [];
 
         if (items.length > 0) {
-          // Uma entrada por item do pedido
           items.forEach(item => {
+            // Campos reais do sale_items Saipos
             const sabor =
-              item.desc_product          ||
-              item.product_description   ||
-              item.product_name          ||
-              item.name                  ||
-              item.description           ||
-              item.title                 || 'Desconhecido';
+              item.desc_product            ||
+              item.product_description     ||
+              item.description             ||
+              item.name                    ||
+              item.title                   || 'Desconhecido';
             const tamanho =
-              item.complement_description ||
-              item.product_complement     ||
-              item.size                   ||
-              item.tamanho                || 'G';
+              item.desc_product_complement ||
+              item.complement_description  ||
+              item.size                    || '';
+            if (sabor === 'Desconhecido') return; // pula itens sem nome
             STATE.historico.push({
-              ...base,
+              data,
               sabor:   sabor.trim(),
               tamanho: tamanho.trim(),
-              qtd:     parseInt(item.quantity || item.qtd || 1),
+              qtd:     parseFloat(item.quantity || item.qtd || 1),
+              valor:   parseFloat(r.total_amount || 0),
+              tipo:    parseInt(r.id_sale_type || 1),
+              canal,
             });
           });
         } else {
-          // Pedido sem itens detalhados — usa campos do nível do pedido
-          const sabor =
-            r.product_description || r.desc_product ||
-            r.product_name        || r.item_name    || 'Desconhecido';
+          // Apps Script antigo — sem itens: registra o pedido sem sabor
           STATE.historico.push({
-            ...base,
-            sabor:   sabor.trim(),
-            tamanho: r.size || r.tamanho || 'G',
+            data,
+            sabor:   'Sem detalhes',
+            tamanho: '',
             qtd:     1,
+            valor:   parseFloat(r.total_amount || 0),
+            tipo:    parseInt(r.id_sale_type || 1),
+            canal,
           });
         }
       });

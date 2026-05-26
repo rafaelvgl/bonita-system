@@ -738,7 +738,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.4</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.5</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -1725,50 +1725,61 @@ async function diagnosticarEndpoints() {
 
   const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
 
-  // Pega uma janela de 3 dias recente para teste
   const now = new Date();
   const end   = new Date(now);
   const start = new Date(now); start.setDate(now.getDate() - 3);
   const fmt = d => d.toISOString().slice(0,19);
 
-  // Testa via Apps Script discover_items
+  // Fase 1: testa endpoints batch via discover_items
   try {
     const params = new URLSearchParams({
-      token: bearerToken,
-      endpoint: 'discover_items',
-      start: fmt(start),
-      end: fmt(end),
-      limit: 1
+      token: bearerToken, endpoint: 'discover_items',
+      start: fmt(start), end: fmt(end), limit: 1
     });
     const resp = await fetch(`${gsUrl}?${params}`);
     const json = await resp.json();
 
-    let output = '=== RESULTADO DOS ENDPOINTS ===\n\n';
+    let output = '=== ENDPOINTS BATCH (filtro de data) ===\n\n';
     for (const [ep, res] of Object.entries(json)) {
-      const ok = res.status === 200 ? '✅' : '❌';
-      output += `${ok} ${ep}: HTTP ${res.status}\n`;
-      if (res.status === 200) {
-        output += `   Amostra: ${res.sample.slice(0,120)}\n`;
-      }
-      output += '\n';
+      output += `${res.status===200?'✅':'❌'} ${ep}: HTTP ${res.status}\n`;
+      if (res.status === 200) output += `   ${res.sample.slice(0,100)}\n`;
     }
 
-    // Identifica o que funciona
-    const funcionou = Object.entries(json).filter(([,r]) => r.status === 200);
-    if (funcionou.length > 0) {
-      output += `\n✅ ENDPOINT QUE FUNCIONA: ${funcionou.map(([ep]) => ep).join(', ')}\n`;
-      output += 'Me mande este resultado para corrigir o mapeamento!\n';
-      showToast(`Encontrado: ${funcionou[0][0]}`, 'success');
-    } else {
-      output += '\n⚠ Nenhum endpoint de itens encontrado.\n';
-      output += 'A API pode não expor itens com filtro de data.\n';
-      showToast('Nenhum endpoint de itens disponível', 'error');
-    }
+    // Fase 2: testa endpoint de itens por id_sale (pega um id real)
+    output += '\n=== ENDPOINT POR ID DE PEDIDO ===\n\n';
+    try {
+      const salesParams = new URLSearchParams({
+        token: bearerToken, endpoint: 'search_sales',
+        col: 'created_at', start: fmt(start), end: fmt(end), limit: 1
+      });
+      const salesResp = await fetch(`${gsUrl}?${salesParams}`);
+      const sales = await salesResp.json();
+      const idSale = Array.isArray(sales) && sales[0]?.id_sale;
+
+      if (idSale) {
+        output += `Testando com id_sale: ${idSale}\n\n`;
+        // Testa via Apps Script passando o id diretamente
+        const endpointsId = [
+          `sale_items_by_id&id_sale=${idSale}`,
+          `search_sale_items_by_id&id_sale=${idSale}`,
+        ];
+        for (const ep of endpointsId) {
+          try {
+            const p2 = new URLSearchParams({ token: bearerToken, endpoint: ep, start: fmt(start), end: fmt(end), limit: 1 });
+            const r2 = await fetch(`${gsUrl}?${p2}`);
+            const j2 = await r2.json();
+            output += `${Array.isArray(j2)&&j2.length?'✅':'❌'} ${ep}\n`;
+            if (Array.isArray(j2) && j2[0]) output += `   Campos: ${Object.keys(j2[0]).join(', ')}\n`;
+          } catch(e2) { output += `❌ ${ep}: ${e2.message}\n`; }
+        }
+        output += `\nid_sale para teste manual: ${idSale}\n`;
+      }
+    } catch(e) { output += `Erro ao buscar pedido: ${e.message}\n`; }
 
     resultEl.textContent = output;
-
+    showToast('Diagnóstico concluído', 'success');
   } catch(e) {
-    resultEl.textContent = `❌ Erro ao diagnosticar: ${e.message}\n\nVerifique se o Apps Script v5 foi implantado.`;
+    resultEl.textContent = `❌ Erro: ${e.message}\nVerifique se o Apps Script v5 foi implantado.`;
     showToast('Erro: ' + e.message, 'error');
   }
 }

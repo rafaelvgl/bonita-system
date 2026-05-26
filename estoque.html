@@ -736,7 +736,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP</div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.1</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -860,7 +860,9 @@ function showPage(page) { // legacy compat → maps to inner tabs
 // ══════════════════════════════════════════════════════════
 async function fetchEndpointEstoque(gsUrl, token, endpoint, start, end, limit=1000){
   const fmt = d => d.toISOString().slice(0,19);
-  const params = new URLSearchParams({ token, endpoint, col:'created_at', start:fmt(start), end:fmt(end), limit });
+  // Garante prefixo Bearer — igual ao pizza-metrics
+  const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+  const params = new URLSearchParams({ token: bearerToken, endpoint, col:'created_at', start:fmt(start), end:fmt(end), limit });
   const resp = await fetch(`${gsUrl}?${params}`);
   if (!resp.ok) throw new Error(`${endpoint} HTTP ${resp.status}`);
   const json = await resp.json();
@@ -1791,8 +1793,8 @@ document.head.appendChild(style);
 (function init() {
   renderWeekGrid();
   renderPreparadosConfig();
-  renderReceitasReais();
-  carregarEstoqueReal();
+  // renderReceitasReais e carregarEstoqueReal são chamados no DOMContentLoaded
+  // após RECEITAS_BONITA e ESTOQUE_BONITA serem declarados
 
   // Pré-preencher campos de config com credenciais já configuradas
   const elUrl = document.getElementById('cfg-saipos-url');
@@ -5883,19 +5885,11 @@ window.addEventListener('DOMContentLoaded', () => {
   if (el) el.textContent = `${dias[now.getDay()]}, ${now.getDate()} ${meses[now.getMonth()]} ${now.getFullYear()} · Atualize para ver projeções`;
   const dateInput = document.getElementById('semana-inicio');
   if (dateInput) dateInput.value = now.toISOString().slice(0,10);
-  // Carrega dados reais
+  // Carrega dados — RECEITAS_BONITA e ESTOQUE_BONITA já declarados acima
   carregarDadosDemo();
   carregarEstoqueReal();
+  renderReceitasReais();
   renderWeekGrid();
-  // Receitas
-  const r = RECEITAS_BONITA?.receitas || [];
-  document.getElementById('badge-receitas').textContent = r.length + ' sabores';
-  const html = r.slice(0,30).map(rec =>
-    `<div class="flex-between small" style="padding:6px 0;border-bottom:1px solid var(--border)">
-      <span class="bold" style="color:var(--cream)">${rec.sabor}</span>
-      <span class="faint">${rec.tamanho} · ${rec.ingredientes?.length||0} ing.</span>
-    </div>`).join('');
-  document.getElementById('lista-receitas').innerHTML = html;
 });
 </script>
 </body>

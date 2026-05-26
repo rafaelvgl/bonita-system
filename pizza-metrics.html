@@ -1,1 +1,1350 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PizzaMetrics · Bonità Pizzaria</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="config.js"></script>
+<link rel="stylesheet" href="style.css">
+<style>
+/* ── PIZZAMETRICS OVERRIDES ─────────────────────────────── */
+/* Variáveis locais mapeadas para o tema Bonità */
+:root {
+  --pm-red:     #D6453D;
+  --pm-orange:  #e07b3a;
+  --pm-gold:    #c8983a;
+  --pm-ok:      #2d9e6b;
+  --pm-warn:    #c49a2a;
+  --pm-bad:     #c94040;
+  --pm-blue:    #4a8fa8;
+  --pm-purple:  #7a5fa8;
+  --pm-surface: rgba(255,240,214,0.06);
+  --pm-surface2:rgba(255,240,214,0.10);
+  --pm-border:  rgba(255,240,214,0.14);
+  --pm-text:    #FFF0D6;
+  --pm-muted:   rgba(255,240,214,0.5);
+  --pm-mono:    'DM Mono','IBM Plex Mono',monospace;
+}
 
+/* Reset mínimo além do style.css */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Body — fundo verde Bonità */
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: #013524;
+  color: var(--pm-text);
+  min-height: 100vh;
+  font-size: 14px;
+}
+
+/* ── CHECKER pattern (marca Bonità) ── */
+.checker-strip {
+  background-image:
+    linear-gradient(45deg,rgba(214,69,61,.18) 25%,transparent 25%),
+    linear-gradient(-45deg,rgba(214,69,61,.18) 25%,transparent 25%),
+    linear-gradient(45deg,transparent 75%,rgba(214,69,61,.18) 75%),
+    linear-gradient(-45deg,transparent 75%,rgba(214,69,61,.18) 75%);
+  background-size: 12px 12px;
+  background-position: 0 0,0 6px,6px -6px,-6px 0;
+}
+
+/* ── HEADER ── */
+.pm-header {
+  background: #024D34;
+  border-bottom: 2px solid #D6453D;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.4rem;
+  height: 56px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.pm-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pm-brand-logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  font-weight: 900;
+  color: #FFF0D6;
+  letter-spacing: -.3px;
+  line-height: 1;
+}
+.pm-brand-logo em { color: #D6453D; font-style: normal; }
+.pm-brand-sub {
+  font-size: 9px;
+  letter-spacing: .14em;
+  color: rgba(255,240,214,.45);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+.pm-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pm-clock {
+  font-size: 11px;
+  font-family: var(--pm-mono);
+  color: var(--pm-muted);
+  letter-spacing: 1px;
+}
+.pm-badge {
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid;
+  font-family: var(--pm-mono);
+  letter-spacing: .5px;
+}
+.pm-badge.demo  { border-color: var(--pm-warn); color: var(--pm-warn); }
+.pm-badge.live  { border-color: var(--pm-ok);   color: var(--pm-ok);   }
+.pm-badge.err   { border-color: var(--pm-bad);  color: var(--pm-bad);  }
+.pm-badge.load  { border-color: var(--pm-blue); color: var(--pm-blue); }
+
+/* ── GLOBAL NAV (integrado ao Sistema Bonità) ── */
+.pm-sitenav {
+  background: #013524;
+  border-bottom: 1px solid rgba(255,240,214,.1);
+  display: flex;
+  align-items: center;
+  padding: 0 1.4rem;
+  height: 40px;
+  gap: 4px;
+  overflow-x: auto;
+}
+.pm-sitenav a {
+  text-decoration: none;
+  font-size: 11px;
+  color: rgba(255,240,214,.5);
+  padding: 0 12px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: all .15s;
+  letter-spacing: .3px;
+}
+.pm-sitenav a:hover { color: #FFF0D6; }
+.pm-sitenav a.active {
+  color: #FFF0D6;
+  border-bottom-color: #D6453D;
+  font-weight: 500;
+}
+.pm-sitenav-sep {
+  color: rgba(255,240,214,.15);
+  font-size: 10px;
+  padding: 0 2px;
+}
+
+/* ── CONFIG PANEL ── */
+.pm-cfg {
+  background: #024D34;
+  border-bottom: 1px solid var(--pm-border);
+  padding: .8rem 1.4rem;
+  display: none;
+  flex-direction: column;
+  gap: .6rem;
+}
+.pm-cfg.open { display: flex; }
+.pm-cfg-title {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--pm-muted);
+  margin-bottom: 2px;
+}
+.pm-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pm-row label { font-size: 11px; color: var(--pm-muted); min-width: 52px; white-space: nowrap; }
+.pm-inp {
+  flex: 1;
+  min-width: 120px;
+  height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-family: var(--pm-mono);
+  background: rgba(255,240,214,.06);
+  border: 1px solid var(--pm-border);
+  border-radius: 4px;
+  color: #FFF0D6;
+  outline: none;
+  transition: border-color .15s;
+}
+.pm-inp:focus { border-color: #D6453D; }
+.pm-info {
+  background: rgba(255,240,214,.05);
+  border: 1px solid var(--pm-border);
+  border-radius: 4px;
+  padding: .5rem .8rem;
+  font-size: 12px;
+  color: var(--pm-muted);
+  line-height: 1.7;
+  display: none;
+}
+
+/* ── BOTÕES ── */
+.pm-btn {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 4px;
+  border: 1px solid var(--pm-border);
+  background: transparent;
+  color: #FFF0D6;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  font-family: 'DM Sans', sans-serif;
+}
+.pm-btn:hover { border-color: #D6453D; color: #D6453D; }
+.pm-btn-primary {
+  background: #D6453D;
+  border-color: #D6453D;
+  color: #FFF0D6;
+  font-weight: 600;
+}
+.pm-btn-primary:hover { background: #b5342d; border-color: #b5342d; color: #FFF0D6; }
+.pm-btn-sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11px;
+  border-radius: 3px;
+  border: 1px solid var(--pm-border);
+  background: transparent;
+  color: var(--pm-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  font-family: 'DM Sans', sans-serif;
+}
+.pm-btn-sm:hover { border-color: rgba(255,240,214,.3); color: #FFF0D6; }
+.pm-btn-sm.active {
+  background: #D6453D;
+  border-color: #D6453D;
+  color: #FFF0D6;
+}
+
+/* ── MODULE NAV ── */
+.pm-modnav {
+  display: flex;
+  background: #024D34;
+  border-bottom: 1px solid var(--pm-border);
+  overflow-x: auto;
+}
+.pm-modtab {
+  height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--pm-muted);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  font-family: 'DM Sans', sans-serif;
+}
+.pm-modtab.active { border-bottom-color: #D6453D; color: #FFF0D6; font-weight: 500; }
+.pm-modtab:hover:not(.active) { color: #FFF0D6; }
+.pm-modtab.tv { color: var(--pm-blue); }
+.pm-modtab.tv.active { border-bottom-color: var(--pm-blue); color: var(--pm-blue); }
+.pm-modtab.cfg-btn { margin-left: auto; font-size: 11px; }
+
+/* ── PERIOD BAR ── */
+.pm-periodbar {
+  display: flex;
+  gap: 4px;
+  padding: .6rem 1.4rem;
+  background: rgba(255,240,214,.03);
+  border-bottom: 1px solid var(--pm-border);
+}
+
+/* ── MAIN ── */
+main { padding: 1rem 1.4rem; }
+section { display: none; }
+section.active { display: block; }
+
+/* ── ALERTA MOTOBOY NOVO ── */
+.pm-alert {
+  background: rgba(196,154,42,.08);
+  border: 1px solid rgba(196,154,42,.3);
+  border-left: 3px solid var(--pm-warn);
+  border-radius: 6px;
+  padding: .8rem 1rem;
+  margin-bottom: 1rem;
+  display: none;
+}
+.pm-alert-title { font-size: 12px; font-weight: 600; color: var(--pm-warn); margin-bottom: .6rem; }
+.pm-moto-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.pm-moto-row:last-child { margin-bottom: 0; }
+.pm-moto-tel { font-family: var(--pm-mono); font-size: 12px; color: #FFF0D6; min-width: 160px; }
+.pm-moto-inp {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+  background: rgba(255,240,214,.06);
+  border: 1px solid rgba(196,154,42,.3);
+  border-radius: 4px;
+  color: #FFF0D6;
+  outline: none;
+  width: 180px;
+}
+.pm-moto-inp:focus { border-color: var(--pm-warn); }
+.pm-moto-btn {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 4px;
+  border: none;
+  background: var(--pm-warn);
+  color: #013524;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pm-moto-btn:hover { background: #d4a82e; }
+
+/* ── KPI CARDS ── */
+.pm-krow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 1rem;
+}
+.pm-kc {
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-top: 2px solid transparent;
+  border-radius: 8px;
+  padding: 1rem;
+  position: relative;
+  transition: background .15s;
+}
+.pm-kc:hover { background: var(--pm-surface2); }
+.pm-kc.r  { border-top-color: var(--pm-red); }
+.pm-kc.o  { border-top-color: var(--pm-orange); }
+.pm-kc.g  { border-top-color: var(--pm-gold); }
+.pm-kc.gn { border-top-color: var(--pm-ok); }
+.pm-kc.b  { border-top-color: var(--pm-blue); }
+.pm-kc.p  { border-top-color: var(--pm-purple); }
+.pm-kl { font-size: 10px; color: var(--pm-muted); margin-bottom: 5px; letter-spacing: .5px; text-transform: uppercase; }
+.pm-kv { font-size: 28px; font-weight: 300; line-height: 1; font-family: 'Playfair Display', serif; }
+.pm-ku { font-size: 10px; color: var(--pm-muted); margin-top: 3px; }
+.pm-kt {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+.pm-tok { background: rgba(45,158,107,.12); color: var(--pm-ok); }
+.pm-tov { background: rgba(201,64,64,.12);  color: var(--pm-bad); }
+.pm-tn  { background: var(--pm-surface2);   color: var(--pm-muted); }
+
+/* ── SLA BARS ── */
+.pm-sc {
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.pm-sc-title { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--pm-muted); margin-bottom: 10px; }
+.pm-sr { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.pm-sr:last-child { margin-bottom: 0; }
+.pm-sl { font-size: 12px; min-width: 160px; color: #FFF0D6; }
+.pm-stk { flex: 1; height: 5px; background: var(--pm-border); border-radius: 3px; overflow: hidden; }
+.pm-sf  { height: 100%; border-radius: 3px; transition: width .8s ease; }
+.pm-sp  { font-size: 12px; font-family: var(--pm-mono); min-width: 44px; text-align: right; }
+
+/* ── WEEKDAY CARDS ── */
+.pm-wg {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-bottom: 1rem;
+}
+.pm-wc {
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: 8px;
+  padding: .6rem .4rem;
+  text-align: center;
+}
+.pm-wn { font-size: 11px; font-weight: 600; color: var(--pm-muted); margin-bottom: 4px; }
+.pm-wn.today { color: #D6453D; }
+.pm-wv { font-size: 15px; font-weight: 500; margin-bottom: 2px; font-family: 'Playfair Display', serif; }
+.pm-wb { height: 3px; border-radius: 2px; margin: 3px auto 4px; }
+.pm-wct { font-size: 10px; color: var(--pm-muted); }
+
+/* ── CHART CARDS ── */
+.pm-cg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1rem; }
+.pm-cc {
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+.pm-cc.fw { grid-column: 1 / -1; }
+.pm-ct { font-size: 13px; font-weight: 600; margin-bottom: 2px; color: #FFF0D6; }
+.pm-cs { font-size: 11px; color: var(--pm-muted); margin-bottom: 10px; }
+.pm-dtb { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+
+/* ── RANKING CARDS ── */
+.pm-rank-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 10px; margin-bottom: 1rem; }
+.pm-rank-card { background: var(--pm-surface); border: 1px solid var(--pm-border); border-radius: 8px; padding: 1rem; }
+.pm-rank-name { font-size: 13px; font-weight: 600; margin-bottom: .3rem; display: flex; align-items: center; gap: 8px; }
+.pm-rank-badge { font-size: 10px; padding: 1px 8px; border-radius: 10px; font-family: var(--pm-mono); }
+.pm-rank-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; margin-top: .6rem; }
+.pm-rank-stat { text-align: center; }
+.pm-rank-stat-v { font-size: 16px; font-weight: 600; }
+.pm-rank-stat-l { font-size: 10px; color: var(--pm-muted); margin-top: 1px; }
+.pm-rank-bar-wrap { margin-top: .6rem; }
+.pm-rank-bar-lbl { display: flex; justify-content: space-between; font-size: 10px; color: var(--pm-muted); margin-bottom: 2px; }
+.pm-rank-bar-trk { height: 4px; background: var(--pm-border); border-radius: 2px; overflow: hidden; }
+.pm-rank-bar-fill { height: 100%; border-radius: 2px; transition: width .7s; }
+
+/* ── HEATMAP ── */
+.pm-hmh { font-size: 9px; color: var(--pm-muted); text-align: center; font-family: var(--pm-mono); }
+.pm-hmr { font-size: 9px; color: var(--pm-muted); display: flex; align-items: center; padding-right: 4px; white-space: nowrap; }
+.pm-hmc { height: 20px; border-radius: 2px; }
+
+/* ── TABLE ── */
+.pm-tbl-wrap { background: var(--pm-surface); border: 1px solid var(--pm-border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.pm-tbl-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .8rem; flex-wrap: wrap; gap: 8px; }
+.pm-tbl-search {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-family: var(--pm-mono);
+  background: rgba(255,240,214,.06);
+  border: 1px solid var(--pm-border);
+  border-radius: 4px;
+  color: #FFF0D6;
+  outline: none;
+  width: 200px;
+}
+.pm-tbl-search:focus { border-color: #D6453D; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--pm-mono); }
+thead tr { border-bottom: 1px solid var(--pm-border); }
+th { text-align: left; padding: .5rem .6rem; font-size: 10px; letter-spacing: 1px; color: var(--pm-muted); cursor: pointer; white-space: nowrap; user-select: none; }
+th:hover { color: #D6453D; }
+td { padding: .45rem .6rem; border-bottom: 1px solid rgba(255,240,214,.04); color: #FFF0D6; }
+tr:hover td { background: var(--pm-surface2); }
+.pm-pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 10px; }
+.pm-pill-ok   { background: rgba(45,158,107,.12); color: var(--pm-ok);   border: 1px solid rgba(45,158,107,.2); }
+.pm-pill-warn { background: rgba(196,154,42,.12); color: var(--pm-warn); border: 1px solid rgba(196,154,42,.2); }
+.pm-pill-bad  { background: rgba(201,64,64,.12);  color: var(--pm-bad);  border: 1px solid rgba(201,64,64,.2); }
+.pm-t-bar { display: inline-block; height: 4px; border-radius: 2px; vertical-align: middle; margin-left: 4px; }
+
+/* ── NOTICE ── */
+.pm-notice {
+  background: rgba(74,143,168,.08);
+  border: 1px solid rgba(74,143,168,.2);
+  border-radius: 4px;
+  padding: .5rem .8rem;
+  font-size: 11px;
+  color: var(--pm-muted);
+  margin-bottom: 1rem;
+  line-height: 1.7;
+}
+.pm-notice strong { color: #FFF0D6; }
+
+/* ── TV MODE ── */
+.pm-tv { background: #013524; min-height: calc(100vh - 160px); }
+.pm-tv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .6rem 1.4rem;
+  border-bottom: 1px solid var(--pm-border);
+  margin-bottom: 1rem;
+}
+.pm-tv-clock { font-family: 'Playfair Display', serif; font-size: 2rem; color: #FFF0D6; font-weight: 700; }
+.pm-tv-date  { font-size: 11px; color: var(--pm-muted); margin-top: 2px; text-align: right; }
+.pm-tv-kpis  { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1rem; }
+.pm-tv-kpi {
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-top: 3px solid transparent;
+  border-radius: 8px;
+  padding: 1.2rem 1rem;
+  text-align: center;
+  position: relative;
+}
+.pm-tv-kpi.r{border-top-color:var(--pm-red)}.pm-tv-kpi.o{border-top-color:var(--pm-orange)}.pm-tv-kpi.g{border-top-color:var(--pm-gold)}.pm-tv-kpi.gn{border-top-color:var(--pm-ok)}.pm-tv-kpi.p{border-top-color:var(--pm-purple)}
+.pm-tv-kpi-lbl { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--pm-muted); margin-bottom: .4rem; }
+.pm-tv-kpi-val { font-family: 'Playfair Display', serif; font-size: 3rem; font-weight: 700; line-height: 1; }
+.pm-tv-kpi-unit{ font-size: 10px; color: var(--pm-muted); margin-top: .2rem; }
+.pm-tv-body { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1rem; }
+.pm-tv-card { background: var(--pm-surface); border: 1px solid var(--pm-border); border-radius: 8px; padding: 1rem; }
+.pm-tv-card-title { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--pm-muted); margin-bottom: .8rem; }
+.pm-tv-sla { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 1rem; }
+.pm-tv-sla-card { background: var(--pm-surface); border: 1px solid var(--pm-border); border-radius: 8px; padding: .8rem 1rem; text-align: center; }
+.pm-tv-sla-pct { font-family: 'Playfair Display', serif; font-size: 2.5rem; font-weight: 700; line-height: 1; }
+.pm-tv-sla-lbl { font-size: 11px; color: var(--pm-muted); margin-top: .3rem; }
+.pm-tv-moto-row { display: flex; align-items: center; justify-content: space-between; padding: .5rem .6rem; background: var(--pm-surface2); border-radius: 6px; margin-bottom: 6px; }
+.pm-tv-order-row { display: flex; align-items: center; gap: 10px; padding: .4rem .7rem; background: var(--pm-surface); border-radius: 6px; margin-bottom: 5px; font-family: var(--pm-mono); font-size: 11px; }
+.pm-tv-order-seg { height: 16px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: rgba(255,240,214,.8); min-width: 20px; padding: 0 4px; }
+
+/* ── FOOTER ── */
+.pm-footer {
+  border-top: 1px solid var(--pm-border);
+  padding: .8rem 1.4rem;
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--pm-muted);
+  font-family: var(--pm-mono);
+  letter-spacing: .5px;
+}
+
+/* ── SPIN ── */
+.pm-spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--pm-border); border-top-color: #D6453D; border-radius: 50%; animation: pm-spin .6s linear infinite; vertical-align: middle; margin-right: 5px; }
+@keyframes pm-spin { to { transform: rotate(360deg); } }
+.pm-stmsg { text-align: center; padding: 3rem; font-size: 13px; color: var(--pm-muted); }
+
+/* ── CHECKER HEADER STRIP ── */
+.pm-checker-bar {
+  height: 6px;
+  background-image:
+    linear-gradient(45deg,#D6453D 25%,transparent 25%),
+    linear-gradient(-45deg,#D6453D 25%,transparent 25%),
+    linear-gradient(45deg,transparent 75%,#D6453D 75%),
+    linear-gradient(-45deg,transparent 75%,#D6453D 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+  background-color: #024D34;
+  opacity: .5;
+}
+
+@media(max-width:700px){
+  .pm-cg{grid-template-columns:1fr}
+  .pm-wg{grid-template-columns:repeat(4,1fr)}
+  .pm-krow{grid-template-columns:repeat(2,1fr)}
+  .pm-rank-grid{grid-template-columns:1fr}
+  .pm-tv-kpis{grid-template-columns:repeat(2,1fr)}
+  .pm-tv-body{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- CHECKER STRIP TOPO -->
+<div class="pm-checker-bar"></div>
+
+<!-- HEADER -->
+<header class="pm-header">
+  <div class="pm-brand">
+    <div>
+      <div class="pm-brand-logo">bonità <em>·</em> metrics</div>
+      <div class="pm-brand-sub">análise de tempos operacionais</div>
+    </div>
+  </div>
+  <div class="pm-header-right">
+    <span class="pm-clock" id="clk"></span>
+    <span class="pm-badge demo" id="badge">● demo</span>
+  </div>
+</header>
+
+<!-- NAV GLOBAL DO SISTEMA BONITÀ -->
+<nav class="pm-sitenav">
+  <a href="index.html">🏠 home</a>
+  <span class="pm-sitenav-sep">/</span>
+  <a href="pizza-metrics.html" class="active">📊 pizzametrics</a>
+  <span class="pm-sitenav-sep">/</span>
+  <a href="estoque.html">📦 estoque</a>
+</nav>
+
+<!-- CONFIG (oculto por padrão) -->
+<div class="pm-cfg" id="pm-cfg">
+  <div class="pm-cfg-title">configuração da conexão saipos</div>
+  <div class="pm-row">
+    <label>proxy url</label>
+    <input class="pm-inp" type="text" id="gs-url" style="max-width:560px">
+  </div>
+  <div class="pm-row">
+    <label>token</label>
+    <input class="pm-inp" type="password" id="tk">
+    <label style="min-width:52px">loja id</label>
+    <input class="pm-inp" type="text" id="sid" style="max-width:90px;flex:none">
+    <select class="pm-inp" id="sel-days" style="max-width:170px;flex:none">
+      <option value="7">últimos 7 dias</option>
+      <option value="14" selected>últimos 14 dias</option>
+      <option value="28">últimos 28 dias</option>
+    </select>
+    <button class="pm-btn pm-btn-primary" onclick="conectar()">▶ conectar</button>
+    <button class="pm-btn" onclick="loadDemo()">demo</button>
+    <span id="fstatus" style="font-size:11px;color:var(--pm-muted);font-family:var(--pm-mono)"></span>
+  </div>
+  <div class="pm-info" id="info"></div>
+</div>
+
+<!-- MODULE NAV -->
+<div class="pm-modnav" id="modnav">
+  <button class="pm-modtab active" data-sec="s-delivery">🛵 Delivery</button>
+  <button class="pm-modtab" data-sec="s-tipo">📊 Por Tipo</button>
+  <button class="pm-modtab" data-sec="s-entregador">👤 Entregadores</button>
+  <button class="pm-modtab" data-sec="s-canal">📱 Canais</button>
+  <button class="pm-modtab" data-sec="s-pedidos">📋 Pedidos</button>
+  <button class="pm-modtab tv" data-sec="s-tv">📺 TV</button>
+  <button class="pm-modtab cfg-btn" onclick="toggleCfg(this)">⚙ config</button>
+</div>
+
+<!-- PERIOD BAR -->
+<div class="pm-periodbar" id="ptabs">
+  <button class="pm-btn-sm active" data-p="all">tudo</button>
+  <button class="pm-btn-sm" data-p="today">hoje</button>
+  <button class="pm-btn-sm" data-p="week">semana</button>
+  <button class="pm-btn-sm" data-p="month">mês</button>
+</div>
+
+<main>
+  <!-- ALERTA MOTOBOY NOVO -->
+  <div class="pm-alert" id="pm-alert">
+    <div class="pm-alert-title">🛵 Entregadores novos detectados — cadastre o nome:</div>
+    <div id="pm-alert-rows"></div>
+  </div>
+
+  <section id="s-delivery" class="active"><div id="delivery-content"><div class="pm-stmsg">conecte ou use o modo demo para visualizar</div></div></section>
+  <section id="s-tipo"><div id="tipo-content"><div class="pm-stmsg">conecte ou use o modo demo para visualizar</div></div></section>
+  <section id="s-entregador">
+    <div class="pm-notice"><strong>Análise por entregador</strong> — tempos médios e SLA de cada motoboy, ordenado pelo maior tempo total.</div>
+    <div id="entregador-content"><div class="pm-stmsg">conecte ou use o modo demo para visualizar</div></div>
+  </section>
+  <section id="s-canal">
+    <div class="pm-notice"><strong>Análise por canal de venda</strong> — iFood, WhatsApp, App próprio, Telefone, Brendi, etc.</div>
+    <div id="canal-content"><div class="pm-stmsg">conecte ou use o modo demo para visualizar</div></div>
+  </section>
+  <section id="s-pedidos"><div id="pedidos-content"><div class="pm-stmsg">conecte ou use o modo demo para visualizar</div></div></section>
+  <section id="s-tv"><div id="tv-content" class="pm-tv"><div class="pm-stmsg">conecte ou use o modo demo para visualizar</div></div></section>
+</main>
+
+<div class="pm-checker-bar" style="opacity:.3"></div>
+
+<footer class="pm-footer">
+  <span>bonità pizzaria · sistema operacional · penápolis, sp</span>
+  <span id="last-sync">—</span>
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  PIZZAMETRICS v4 — Integrado ao Sistema Bonità
+//  Lê configurações de config.js (window.BONITA_CONFIG)
+// ═══════════════════════════════════════════════════════════
+
+// Carrega config do sistema Bonità (config.js) ou usa fallback
+const BC = (typeof window.BONITA_CONFIG !== 'undefined') ? window.BONITA_CONFIG : null;
+
+const CONFIG = {
+  gsUrl:  BC?.saipos?.gsUrl   || BC?.saipos?.baseUrl || '',
+  token:  BC?.saipos?.token   || '',
+  storeId:BC?.saipos?.storeId || '76472',
+  metaCozinha: BC?.metas?.tempoCozinhaMin || 20,
+  metaEntrega: BC?.metas?.tempoEntregaMin || 15,
+  metaTotal:   BC?.metas?.tempoTotalSLA   || 35,
+  entregadores: BC?.entregadores || {
+    '18991627196':'Kaiki',
+    '18997521998':'André',
+    '18997685948':'João V. Hansen',
+    '18998259966':'Roberta Rodrigues',
+    '44988436823':'Rafael Vendrame'
+  }
+};
+
+// Pré-preenche campos com as configurações do config.js
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('gs-url').value = CONFIG.gsUrl;
+  document.getElementById('tk').value     = CONFIG.token;
+  document.getElementById('sid').value    = CONFIG.storeId;
+  // Se token e URL já estão configurados, conecta automaticamente
+  if(CONFIG.gsUrl && CONFIG.token) conectar();
+});
+
+const DAYS_PT   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const DAYS_FULL = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+const TIPO_LABELS= {1:'Delivery',2:'Balcão',3:'Salão',4:'Ficha'};
+const TIPO_COLS  = {1:'var(--pm-red)',2:'var(--pm-blue)',3:'var(--pm-ok)',4:'var(--pm-purple)'};
+const TIPO_HEX   = {1:'#D6453D',2:'#4a8fa8',3:'#2d9e6b',4:'#7a5fa8'};
+
+let S = {
+  orders:[], period:'all', activeSection:'s-delivery',
+  charts:{}, live:false, tableData:[], sortCol:'total', sortAsc:false,
+  cmpDay:1, tvTimer:null
+};
+
+// Clock
+setInterval(()=>{
+  const t = new Date().toLocaleTimeString('pt-BR');
+  document.getElementById('clk').textContent = t;
+  const tc = document.getElementById('tv-clock');
+  if(tc) tc.textContent = t;
+  const td = document.getElementById('tv-date');
+  if(td) td.textContent = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
+}, 1000);
+
+// Config toggle
+function toggleCfg(btn){
+  const s = document.getElementById('pm-cfg');
+  const open = s.classList.toggle('open');
+  btn.textContent = open ? '✕ fechar' : '⚙ config';
+  if(open) btn.classList.add('active'); else btn.classList.remove('active');
+}
+
+// Module nav
+document.getElementById('modnav').addEventListener('click', e => {
+  const b = e.target.closest('.pm-modtab');
+  if(!b || b.classList.contains('cfg-btn')) return;
+  document.querySelectorAll('.pm-modtab:not(.cfg-btn)').forEach(t=>t.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));
+  document.getElementById(b.dataset.sec).classList.add('active');
+  S.activeSection = b.dataset.sec;
+  document.getElementById('ptabs').style.display = b.dataset.sec === 's-tv' ? 'none' : 'flex';
+  if(b.dataset.sec === 's-tv') startTV(); else stopTV();
+  renderSection(S.activeSection);
+});
+
+// Period tabs
+document.getElementById('ptabs').addEventListener('click', e => {
+  const b = e.target.closest('.pm-btn-sm[data-p]');
+  if(!b) return;
+  document.querySelectorAll('.pm-btn-sm[data-p]').forEach(t=>t.classList.remove('active'));
+  b.classList.add('active');
+  S.period = b.dataset.p;
+  renderSection(S.activeSection);
+});
+
+// TV auto-refresh
+function startTV(){ stopTV(); S.tvTimer = setInterval(()=>{ if(S.live) conectar(); }, 120000); }
+function stopTV() { if(S.tvTimer){ clearInterval(S.tvTimer); S.tvTimer=null; } }
+
+// Stats
+const avg = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 0;
+const med = a => { if(!a.length)return 0; const s=[...a].sort((x,y)=>x-y); const m=Math.floor(s.length/2); return s.length%2?s[m]:(s[m-1]+s[m])/2; };
+const pct = (a,p) => { if(!a.length)return 0; const s=[...a].sort((x,y)=>x-y); return s[Math.max(0,Math.ceil(p/100*s.length)-1)]; };
+function gauss(m,sd){ let u=0,v=0; while(!u)u=Math.random(); while(!v)v=Math.random(); return m+sd*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+
+function filterByPeriod(orders){
+  const now=new Date(), today=new Date(now); today.setHours(0,0,0,0);
+  const wk=new Date(today); wk.setDate(today.getDate()-today.getDay());
+  const mo=new Date(now.getFullYear(),now.getMonth(),1);
+  if(S.period==='today') return orders.filter(o=>o.orderTime>=today);
+  if(S.period==='week')  return orders.filter(o=>o.orderTime>=wk);
+  if(S.period==='month') return orders.filter(o=>o.orderTime>=mo);
+  return orders;
+}
+
+// UI helpers
+function setBadge(t){ const el=document.getElementById('badge'); const m={d:['● demo','pm-badge demo'],l:['● live','pm-badge live'],e:['● erro','pm-badge err'],k:['buscando…','pm-badge load']}; el.textContent=m[t][0]; el.className=m[t][1]; }
+function showInfo(html){ const el=document.getElementById('info'); if(!html){el.style.display='none';return;} el.innerHTML=html; el.style.display='block'; }
+function dChart(id){ if(S.charts[id]){ S.charts[id].destroy(); delete S.charts[id]; } }
+function sColor(t){ return t<=30?'var(--pm-ok)':t<=45?'var(--pm-warn)':'var(--pm-bad)'; }
+function sLabel(t){ return t<=30?'excelente':t<=45?'ok':'crítico'; }
+function sPill(t){ const l=sLabel(t); return `<span class="pm-pill ${l==='excelente'?'pm-pill-ok':l==='ok'?'pm-pill-warn':'pm-pill-bad'}">${l}</span>`; }
+function dtag(v,tgt){ const d=v-tgt; if(Math.abs(d)<.5)return`<span class="pm-kt pm-tn">≈ meta</span>`; if(d>0)return`<span class="pm-kt pm-tov">+${d.toFixed(1)}</span>`; return`<span class="pm-kt pm-tok">${d.toFixed(1)}</span>`; }
+function cOpts(yL='min'){
+  const gc='rgba(255,240,214,.05)', tc='rgba(255,240,214,.35)';
+  return{ responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{labels:{color:tc,font:{size:10},boxWidth:10,padding:10}}, tooltip:{backgroundColor:'#013524',borderColor:'rgba(255,240,214,.15)',borderWidth:1,titleColor:'#FFF0D6',bodyColor:tc} },
+    scales:{ x:{ticks:{color:tc,font:{size:10}},grid:{color:gc}}, y:{title:{display:!!yL,text:yL,color:tc,font:{size:10}},ticks:{color:tc,font:{size:10}},grid:{color:gc}} }
+  };
+}
+
+// Resolve nome do entregador a partir do telefone
+function resolveNomeMoto(raw){
+  if(!raw) return null;
+  const s = raw.trim().replace(/@.*$/, '');
+  const tel = s.replace(/\D/g, '');
+  if(CONFIG.entregadores[tel]) return CONFIG.entregadores[tel];
+  if(/^\d{10,11}$/.test(tel)) return `(${tel.slice(0,2)}) ${tel.slice(2,7)}-${tel.slice(7)}`;
+  const skip = ['integration-api-int-sale','kds','chatbot','sistema','api'];
+  if(skip.some(x=>s.toLowerCase().includes(x))) return null;
+  return s || null;
+}
+
+// ── ALERTA MOTOBOYS NOVOS ──────────────────────────────────
+function mostrarAlertaNovos(novos){
+  const wrap = document.getElementById('pm-alert');
+  const rows = document.getElementById('pm-alert-rows');
+  if(!novos.size){ wrap.style.display='none'; return; }
+  wrap.style.display = 'block';
+  rows.innerHTML = [...novos].map(tel => `
+    <div class="pm-moto-row">
+      <span class="pm-moto-tel">🛵 ${tel.length>=10?`(${tel.slice(0,2)}) ${tel.slice(2,7)}-${tel.slice(7)}`:tel}</span>
+      <input class="pm-moto-inp" type="text" placeholder="Nome do entregador…" id="moto-${tel}">
+      <button class="pm-moto-btn" onclick="salvarMoto('${tel}')">salvar</button>
+    </div>`).join('');
+}
+function salvarMoto(tel){
+  const inp = document.getElementById(`moto-${tel}`);
+  const nome = (inp?.value||'').trim();
+  if(!nome){ inp?.focus(); return; }
+  CONFIG.entregadores[tel] = nome;
+  S.orders.forEach(o=>{ if(o._tel===tel) o.entregador=nome; });
+  inp.closest('.pm-moto-row').remove();
+  if(!document.querySelectorAll('.pm-moto-row').length)
+    document.getElementById('pm-alert').style.display='none';
+  renderSection(S.activeSection);
+}
+
+// ── DEMO DATA ──────────────────────────────────────────────
+function loadDemo(){
+  const orders=[], channels=['iFood','WhatsApp','Brendi','Telefone'],
+        motos=['Kaiki','André','João V. Hansen','Roberta Rodrigues'], now=new Date();
+  for(let d=27;d>=0;d--){
+    const date=new Date(now); date.setDate(now.getDate()-d);
+    const wd=date.getDay();
+    [[1,30],[2,8],[3,12],[4,5]].forEach(([tipo,base])=>{
+      const load=Math.round(base*(wd>=5?1.4:wd===0?1.1:1)*(0.7+Math.random()*0.6));
+      for(let i=0;i<load;i++){
+        const h=Math.floor(10+Math.random()*13),pk=(h>=19&&h<=21)?4:0,we=(wd>=5?3:0);
+        const cz=Math.max(8,Math.round(gauss(18+pk,4)));
+        const ag=tipo===1?Math.max(1,Math.round(gauss(5+pk,2))):0;
+        const en=tipo===1?Math.max(8,Math.round(gauss(17+pk+we,4))):0;
+        const tot=cz+ag+en;
+        const t=new Date(date); t.setHours(h,Math.floor(Math.random()*60),0,0);
+        orders.push({
+          id:`#D-${orders.length+1}`, orderTime:t, weekday:t.getDay(), hour:h,
+          cozinha:cz, aguardando:ag, entrega:en, total:tot,
+          tipo, tipoLabel:TIPO_LABELS[tipo],
+          channel:tipo===1?channels[Math.floor(Math.random()*4)]:(tipo===2?'Balcão':tipo===3?'Salão':'Ficha'),
+          entregador:tipo===1?motos[Math.floor(Math.random()*motos.length)]:'—',
+          _tel:null, valor:Math.round(gauss(65,20)), temposReais:false,
+          statusLabel:sLabel(tot)
+        });
+      }
+    });
+  }
+  S.orders=orders; S.live=false;
+  setBadge('d'); showInfo('');
+  document.getElementById('fstatus').textContent=`${orders.length} pedidos (demo)`;
+  document.getElementById('last-sync').textContent='modo demonstração';
+  renderSection(S.activeSection);
+}
+
+// ── CONEXÃO REAL ──────────────────────────────────────────
+async function fetchEndpoint(gsUrl, token, endpoint, start, end, limit=1000){
+  const fmt = d=>d.toISOString().slice(0,19);
+  const params = new URLSearchParams({token, endpoint, col:'created_at', start:fmt(start), end:fmt(end), limit});
+  const resp = await fetch(`${gsUrl}?${params}`);
+  if(!resp.ok) throw new Error(`${endpoint} HTTP ${resp.status}`);
+  const json = await resp.json();
+  if(json.error) throw new Error(`Saipos ${endpoint}: ${json.error}`);
+  return Array.isArray(json) ? json : [];
+}
+
+async function conectar(){
+  const gsUrl   = document.getElementById('gs-url').value.trim();
+  const token   = document.getElementById('tk').value.trim().replace(/^Bearer\s+/i,'');
+  const days    = parseInt(document.getElementById('sel-days').value);
+  if(!gsUrl||!token){ alert('Preencha URL e token em ⚙ config'); return; }
+  setBadge('k'); showInfo('<span class="pm-spin"></span> buscando dados saipos…');
+  document.getElementById('fstatus').textContent = 'buscando…';
+  try{
+    const now=new Date(), windows=[];
+    for(let i=0;i<days;i+=14){
+      const end=new Date(now); end.setDate(now.getDate()-i);
+      const start=new Date(now); start.setDate(now.getDate()-Math.min(i+14,days));
+      windows.push({start,end});
+    }
+    const allSales=[], allHist=[];
+    for(let w=0;w<windows.length;w++){
+      const {start,end}=windows[w];
+      document.getElementById('fstatus').textContent=`janela ${w+1}/${windows.length}…`;
+      const [sales,hist]=await Promise.all([
+        fetchEndpoint(gsUrl,token,'search_sales',start,end),
+        fetchEndpoint(gsUrl,token,'sales_status_histories',start,end)
+      ]);
+      allSales.push(...sales); allHist.push(...hist);
+    }
+    const histMap = buildHistMap(allHist);
+    const novos   = detectarNovos(histMap);
+    const orders  = allSales.map(r=>mapOrder(r,histMap)).filter(Boolean);
+    if(!orders.length) throw new Error('Nenhum pedido mapeado.');
+    S.orders=orders; S.live=true;
+    setBadge('l');
+    showInfo(`<strong style="color:var(--pm-ok)">✓ conectado!</strong> ${orders.length} pedidos · ${orders.filter(o=>o.temposReais).length} com tempos reais.`);
+    document.getElementById('fstatus').textContent=`${orders.length} pedidos`;
+    document.getElementById('last-sync').textContent='sync: '+new Date().toLocaleTimeString('pt-BR');
+    mostrarAlertaNovos(novos);
+    renderSection(S.activeSection);
+  }catch(err){
+    console.error(err); setBadge('e');
+    showInfo(`<strong style="color:var(--pm-bad)">erro:</strong> ${err.message}`);
+    document.getElementById('fstatus').textContent='erro';
+  }
+}
+
+function buildHistMap(histories){
+  const map={};
+  histories.forEach(h=>{
+    if(!h.id_sale||!h.histories) return;
+    let cz=0,ag=0,en=0,entregadorRaw=null;
+    h.histories.forEach(st=>{
+      const desc=(st.desc_store_sale_status||'').trim();
+      const dur=parseFloat(st.duration_time_seconds||0);
+      if(desc==='Montagem')                cz+=dur;
+      else if(desc==='Aguardando entrega') ag+=dur;
+      else if(desc==='Saiu para entrega'){ en+=dur; if(st.user?.full_name&&!entregadorRaw) entregadorRaw=st.user.full_name; }
+      else {
+        const dl=desc.toLowerCase();
+        if(/montagem|cozinha|preparo/i.test(dl))   cz+=dur;
+        else if(/aguardando|esperando/i.test(dl))  ag+=dur;
+        else if(/saiu|rota|motoboy/i.test(dl)){ en+=dur; if(st.user?.full_name&&!entregadorRaw) entregadorRaw=st.user.full_name; }
+      }
+    });
+    if(cz>0||ag>0||en>0) map[h.id_sale]={ cz:Math.round(cz/60), ag:Math.round(ag/60), en:Math.round(en/60), entregadorRaw };
+  });
+  return map;
+}
+
+function detectarNovos(histMap){
+  const novos=new Set();
+  Object.values(histMap).forEach(h=>{
+    if(!h.entregadorRaw) return;
+    const tel=h.entregadorRaw.replace(/@.*$/,'').replace(/\D/g,'');
+    if(/^\d{10,11}$/.test(tel)&&!CONFIG.entregadores[tel]) novos.add(tel);
+  });
+  return novos;
+}
+
+function mapOrder(r, histMap){
+  try{
+    if(r.canceled==='Y') return null;
+    const created=new Date(r.created_at);
+    if(isNaN(created)) return null;
+    const tipo=parseInt(r.id_sale_type||1);
+    let cz=0,ag=0,en=0,temposReais=false;
+    const hist=histMap[r.id_sale];
+    if(hist&&(hist.cz>0||hist.ag>0||hist.en>0)){
+      cz=hist.cz; ag=hist.ag; en=hist.en; temposReais=true;
+    } else {
+      if(r.notes){
+        const m=r.notes.match(/Entrega para às (\d{2}):(\d{2}):(\d{2})/i)||r.notes.match(/Entrega para (\d{2}):(\d{2})/i);
+        if(m){
+          const tp=new Date(created); tp.setHours(parseInt(m[1]),parseInt(m[2]),parseInt(m[3]||0),0);
+          if(tp<created) tp.setDate(tp.getDate()+1);
+          const tot=Math.round((tp-created)/60000);
+          cz=Math.round(tot*.55); en=Math.round(tot*.30); ag=Math.max(0,tot-cz-en);
+        }
+      }
+      if(!cz&&!en){ cz=20; ag=tipo===1?5:0; en=tipo===1?15:0; }
+    }
+    const tot=cz+ag+en; if(tot<1) return null;
+
+    // Entregador
+    let entregador='—', _tel=null;
+    if(r.delivery_man?.delivery_man_name){ entregador=r.delivery_man.delivery_man_name; }
+    else if(hist?.entregadorRaw){
+      const nome=resolveNomeMoto(hist.entregadorRaw);
+      if(nome) entregador=nome;
+      const tel=hist.entregadorRaw.replace(/@.*$/,'').replace(/\D/g,'');
+      if(/^\d{10,11}$/.test(tel)) _tel=tel;
+    }
+
+    // Canal — usa partner_sale.partner_name ou desc_sale_type ou fallback por tipo
+    let channel='Próprio';
+    if(r.partner_sale?.partner_name)      channel=r.partner_sale.partner_name;
+    else if(r.desc_sale_type)             channel=r.desc_sale_type;
+    else if(tipo===2)                     channel='Balcão';
+    else if(tipo===3)                     channel='Salão';
+    else if(tipo===4)                     channel='Ficha';
+    else if(r.delivery?.delivery_by==='IFOOD') channel='iFood';
+    else if(r.delivery?.delivery_by==='RAPPI') channel='Rappi';
+
+    return{
+      id:`#${r.sale_number||r.id_sale}`, orderTime:created,
+      weekday:created.getDay(), hour:created.getHours(),
+      cozinha:Math.max(0,cz), aguardando:Math.max(0,ag), entrega:Math.max(0,en), total:Math.max(1,tot),
+      tipo, tipoLabel:TIPO_LABELS[tipo]||'Outro',
+      channel, entregador, _tel,
+      valor:parseFloat(r.total_amount||0),
+      statusLabel:sLabel(tot), temposReais
+    };
+  }catch(e){ return null; }
+}
+
+// ── RENDER CONTROLLER ─────────────────────────────────────
+function renderSection(sec){
+  const f=filterByPeriod(S.orders);
+  if(sec==='s-delivery')   renderDelivery(f.filter(o=>o.tipo===1));
+  if(sec==='s-tipo')       renderTipo(f);
+  if(sec==='s-entregador') renderEntregadores(f.filter(o=>o.tipo===1));
+  if(sec==='s-canal')      renderCanais(f);
+  if(sec==='s-pedidos')    renderPedidos(f);
+  if(sec==='s-tv')         renderTV();
+}
+
+// ── DELIVERY ──────────────────────────────────────────────
+function renderDelivery(orders){
+  const el=document.getElementById('delivery-content');
+  if(!orders.length){el.innerHTML='<div class="pm-stmsg">nenhum pedido de delivery no período</div>';return;}
+  const cz=orders.map(o=>o.cozinha),ag=orders.map(o=>o.aguardando),en=orders.map(o=>o.entrega),to=orders.map(o=>o.total);
+  const aC=avg(cz),aAg=avg(ag),aE=avg(en),aT=avg(to);
+  const s30=orders.filter(o=>o.total<=30).length/orders.length*100;
+  const s45=orders.filter(o=>o.total>30&&o.total<=45).length/orders.length*100;
+  const sBad=orders.filter(o=>o.total>45).length/orders.length*100;
+  const comReal=orders.filter(o=>o.temposReais).length;
+  el.innerHTML=`
+  ${comReal<orders.length?`<div class="pm-notice"><strong>${comReal} de ${orders.length}</strong> pedidos com tempos reais do histórico de status.</div>`:''}
+  <div class="pm-krow">
+    <div class="pm-kc r">${dtag(aC,CONFIG.metaCozinha)}<div class="pm-kl">montagem</div><div class="pm-kv" style="color:var(--pm-red)">${aC.toFixed(1)}</div><div class="pm-ku">min · meta ${CONFIG.metaCozinha}min</div></div>
+    <div class="pm-kc p">${dtag(aAg,5)}<div class="pm-kl">ag. entrega</div><div class="pm-kv" style="color:var(--pm-purple)">${aAg.toFixed(1)}</div><div class="pm-ku">min · pizza pronta/esperando</div></div>
+    <div class="pm-kc o">${dtag(aE,CONFIG.metaEntrega)}<div class="pm-kl">saiu p/ entrega</div><div class="pm-kv" style="color:var(--pm-orange)">${aE.toFixed(1)}</div><div class="pm-ku">min · motoboy na rua · meta ${CONFIG.metaEntrega}min</div></div>
+    <div class="pm-kc g">${dtag(aT,CONFIG.metaTotal)}<div class="pm-kl">total</div><div class="pm-kv" style="color:var(--pm-gold)">${aT.toFixed(1)}</div><div class="pm-ku">min · meta ${CONFIG.metaTotal}min</div></div>
+    <div class="pm-kc gn"><div class="pm-kl">pedidos delivery</div><div class="pm-kv" style="color:var(--pm-ok)">${orders.length}</div><div class="pm-ku">no período</div></div>
+    <div class="pm-kc b"><div class="pm-kl">sla ≤ 45min</div><div class="pm-kv" style="color:var(--pm-blue)">${(s30+s45).toFixed(1)}%</div><div class="pm-ku">dentro do prazo</div></div>
+  </div>
+  <div class="pm-sc"><div class="pm-sc-title">breakdown sla</div>
+    <div class="pm-sr"><div class="pm-sl">≤ 30min — excelente</div><div class="pm-stk"><div class="pm-sf" style="background:var(--pm-ok);width:${s30.toFixed(1)}%"></div></div><div class="pm-sp" style="color:var(--pm-ok)">${s30.toFixed(1)}%</div></div>
+    <div class="pm-sr"><div class="pm-sl">31–45min — ok</div><div class="pm-stk"><div class="pm-sf" style="background:var(--pm-warn);width:${s45.toFixed(1)}%"></div></div><div class="pm-sp" style="color:var(--pm-warn)">${s45.toFixed(1)}%</div></div>
+    <div class="pm-sr"><div class="pm-sl">> 45min — crítico</div><div class="pm-stk"><div class="pm-sf" style="background:var(--pm-bad);width:${sBad.toFixed(1)}%"></div></div><div class="pm-sp" style="color:var(--pm-bad)">${sBad.toFixed(1)}%</div></div>
+  </div>
+  <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--pm-muted);margin-bottom:8px">média por dia da semana</div>
+  <div class="pm-wg" id="del-wg"></div>
+  <div class="pm-cg">
+    <div class="pm-cc"><div class="pm-ct">Evolução Diária</div><div class="pm-cs">média por dia</div><div style="position:relative;height:220px"><canvas id="c-daily"></canvas></div></div>
+    <div class="pm-cc"><div class="pm-ct">Distribuição · Tempo Total</div><div class="pm-cs">frequência por faixa</div><div style="position:relative;height:220px"><canvas id="c-hist"></canvas></div></div>
+  </div>
+  <div class="pm-cg">
+    <div class="pm-cc fw"><div class="pm-ct">Comparativo Mesmo Dia — 4 Semanas</div>
+      <div class="pm-dtb" id="del-dtb">${['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map((d,i)=>`<button class="pm-btn-sm${S.cmpDay===[1,2,3,4,5,6,0][i]?' active':''}" data-wd="${[1,2,3,4,5,6,0][i]}">${d}</button>`).join('')}</div>
+      <div id="del-csub" class="pm-cs"></div>
+      <div style="position:relative;height:190px"><canvas id="c-cmp"></canvas></div>
+    </div>
+  </div>
+  <div class="pm-cg">
+    <div class="pm-cc"><div class="pm-ct">Percentis por Dia</div><div class="pm-cs">p25 · mediana · p75</div><div style="position:relative;height:220px"><canvas id="c-pct"></canvas></div></div>
+    <div class="pm-cc"><div class="pm-ct">Mapa de Calor</div><div class="pm-cs">tempo total médio · hora × dia</div><div id="del-hm" style="margin-top:6px;overflow-x:auto"></div></div>
+  </div>`;
+  document.getElementById('del-dtb').addEventListener('click',e=>{
+    const b=e.target.closest('.pm-btn-sm[data-wd]'); if(!b) return;
+    document.querySelectorAll('#del-dtb .pm-btn-sm').forEach(t=>t.classList.remove('active'));
+    b.classList.add('active'); S.cmpDay=parseInt(b.dataset.wd); renderCmp(orders);
+  });
+  renderWd('del-wg',orders); renderDaily(orders); renderHist(orders);
+  renderCmp(orders); renderPct(orders); renderHeatmap('del-hm',orders);
+}
+
+// ── POR TIPO ──────────────────────────────────────────────
+function renderTipo(orders){
+  const el=document.getElementById('tipo-content');
+  if(!orders.length){el.innerHTML='<div class="pm-stmsg">nenhum pedido no período</div>';return;}
+  const byTipo={};
+  orders.forEach(o=>{if(!byTipo[o.tipo])byTipo[o.tipo]={orders:[],label:o.tipoLabel};byTipo[o.tipo].orders.push(o);});
+  const cards=Object.entries(byTipo).sort((a,b)=>b[1].orders.length-a[1].orders.length).map(([tipo,{orders:ords,label}])=>{
+    const ac=avg(ords.map(o=>o.cozinha)),ae=avg(ords.map(o=>o.entrega)),at=avg(ords.map(o=>o.total));
+    const sla=ords.filter(o=>o.total<=45).length/ords.length*100, col=TIPO_COLS[tipo]||'var(--pm-muted)';
+    return`<div class="pm-kc" style="border-top-color:${col}"><div class="pm-kl" style="color:${col};font-weight:600;font-size:12px;text-transform:none;letter-spacing:0">${label}</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:.5rem">
+        <div style="text-align:center"><div style="font-size:18px;font-weight:600;color:${col}">${ords.length}</div><div style="font-size:10px;color:var(--pm-muted)">pedidos</div></div>
+        <div style="text-align:center"><div style="font-size:18px;font-weight:600;color:var(--pm-red)">${ac.toFixed(0)}m</div><div style="font-size:10px;color:var(--pm-muted)">cozinha</div></div>
+        <div style="text-align:center"><div style="font-size:18px;font-weight:600;color:var(--pm-orange)">${ae.toFixed(0)}m</div><div style="font-size:10px;color:var(--pm-muted)">entrega</div></div>
+        <div style="text-align:center"><div style="font-size:18px;font-weight:600;color:var(--pm-gold)">${at.toFixed(0)}m</div><div style="font-size:10px;color:var(--pm-muted)">total</div></div>
+      </div>
+      <div style="margin-top:.6rem"><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--pm-muted);margin-bottom:2px"><span>SLA ≤ 45min</span><span style="color:${sla>=80?'var(--pm-ok)':'var(--pm-warn)'}">${sla.toFixed(1)}%</span></div>
+        <div class="pm-rank-bar-trk"><div class="pm-rank-bar-fill" style="width:${sla.toFixed(1)}%;background:${sla>=80?'var(--pm-ok)':'var(--pm-warn)'}"></div></div>
+      </div></div>`;
+  }).join('');
+  const tl=Object.values(byTipo).map(t=>t.label);
+  const tcz=Object.values(byTipo).map(t=>+avg(t.orders.map(o=>o.cozinha)).toFixed(1));
+  const ten=Object.values(byTipo).map(t=>+avg(t.orders.map(o=>o.entrega)).toFixed(1));
+  el.innerHTML=`<div class="pm-krow" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">${cards}</div>
+  <div class="pm-cg">
+    <div class="pm-cc"><div class="pm-ct">Cozinha vs Entrega por Tipo</div><div class="pm-cs">tempo médio em minutos</div><div style="position:relative;height:240px"><canvas id="c-tipo-bar"></canvas></div></div>
+    <div class="pm-cc"><div class="pm-ct">Volume por Tipo</div><div class="pm-cs">distribuição de pedidos</div><div style="position:relative;height:240px"><canvas id="c-tipo-pie"></canvas></div></div>
+  </div>`;
+  dChart('c-tipo-bar'); const ctx1=document.getElementById('c-tipo-bar'); if(!ctx1) return;
+  S.charts['c-tipo-bar']=new Chart(ctx1,{type:'bar',data:{labels:tl,datasets:[{label:'Cozinha',data:tcz,backgroundColor:'rgba(214,69,61,.7)',borderRadius:3},{label:'Entrega',data:ten,backgroundColor:'rgba(224,123,58,.7)',borderRadius:3}]},options:cOpts('minutos')});
+  dChart('c-tipo-pie'); const ctx2=document.getElementById('c-tipo-pie'); if(!ctx2) return;
+  S.charts['c-tipo-pie']=new Chart(ctx2,{type:'doughnut',data:{labels:tl,datasets:[{data:Object.values(byTipo).map(t=>t.orders.length),backgroundColor:Object.keys(byTipo).map(t=>TIPO_HEX[t]||'#888'),borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'rgba(255,240,214,.4)',font:{size:11},boxWidth:12}},tooltip:{backgroundColor:'#013524',borderColor:'rgba(255,240,214,.15)',borderWidth:1,titleColor:'#FFF0D6',bodyColor:'rgba(255,240,214,.5)'}}}});
+}
+
+// ── ENTREGADORES ──────────────────────────────────────────
+function renderEntregadores(orders){
+  const el=document.getElementById('entregador-content');
+  if(!orders.length){el.innerHTML='<div class="pm-stmsg">nenhum pedido de delivery no período</div>';return;}
+  const byDel={};
+  orders.forEach(o=>{const k=o.entregador||'—';if(!byDel[k])byDel[k]=[];byDel[k].push(o);});
+  const sorted=Object.entries(byDel).sort((a,b)=>avg(b[1].map(o=>o.total))-avg(a[1].map(o=>o.total)));
+  const maxA=avg(sorted[0]?.[1].map(o=>o.total)||[1]);
+  const cards=sorted.map(([name,ords])=>{
+    const ac=avg(ords.map(o=>o.cozinha)),ae=avg(ords.map(o=>o.entrega)),at=avg(ords.map(o=>o.total));
+    const sla=ords.filter(o=>o.total<=45).length/ords.length*100, col=sColor(at);
+    return`<div class="pm-rank-card"><div class="pm-rank-name"><span style="font-size:18px">🛵</span><span>${name==='—'?'Não informado':name}</span>
+      <span class="pm-rank-badge" style="background:${sla>=80?'rgba(45,158,107,.1)':'rgba(196,154,42,.1)'};color:${sla>=80?'var(--pm-ok)':'var(--pm-warn)'};border:1px solid ${sla>=80?'rgba(45,158,107,.2)':'rgba(196,154,42,.2)'}">${ords.length} ped.</span></div>
+      <div class="pm-rank-stats">
+        <div class="pm-rank-stat"><div class="pm-rank-stat-v" style="color:var(--pm-red)">${ac.toFixed(0)}m</div><div class="pm-rank-stat-l">cozinha</div></div>
+        <div class="pm-rank-stat"><div class="pm-rank-stat-v" style="color:var(--pm-orange)">${ae.toFixed(0)}m</div><div class="pm-rank-stat-l">entrega</div></div>
+        <div class="pm-rank-stat"><div class="pm-rank-stat-v" style="color:${col}">${at.toFixed(0)}m</div><div class="pm-rank-stat-l">total</div></div>
+      </div>
+      <div class="pm-rank-bar-wrap">
+        <div class="pm-rank-bar-lbl"><span>Tempo total médio</span><span style="color:${col}">${at.toFixed(1)}min</span></div>
+        <div class="pm-rank-bar-trk"><div class="pm-rank-bar-fill" style="width:${Math.min(100,at/maxA*100).toFixed(0)}%;background:${col}"></div></div>
+        <div class="pm-rank-bar-lbl" style="margin-top:4px"><span>SLA ≤ 45min</span><span style="color:${sla>=80?'var(--pm-ok)':'var(--pm-warn)'}">${sla.toFixed(1)}%</span></div>
+        <div class="pm-rank-bar-trk"><div class="pm-rank-bar-fill" style="width:${sla.toFixed(1)}%;background:${sla>=80?'var(--pm-ok)':'var(--pm-warn)'}"></div></div>
+      </div></div>`;
+  }).join('');
+  const dl=sorted.map(([n])=>n==='—'?'N/I':n.split(' ')[0]);
+  const dcz=sorted.map(([,o])=>+avg(o.map(x=>x.cozinha)).toFixed(1));
+  const dag=sorted.map(([,o])=>+avg(o.map(x=>x.aguardando||0)).toFixed(1));
+  const den=sorted.map(([,o])=>+avg(o.map(x=>x.entrega)).toFixed(1));
+  el.innerHTML=`<div class="pm-rank-grid">${cards}</div>
+  <div class="pm-cc fw" style="margin-bottom:1rem"><div class="pm-ct">Comparativo de Entregadores</div><div class="pm-cs">tempo médio por motoboy</div>
+    <div style="position:relative;height:260px"><canvas id="c-del-bar"></canvas></div></div>`;
+  dChart('c-del-bar'); const ctx=document.getElementById('c-del-bar'); if(!ctx) return;
+  S.charts['c-del-bar']=new Chart(ctx,{type:'bar',data:{labels:dl,datasets:[
+    {label:'Montagem',data:dcz,backgroundColor:'rgba(214,69,61,.65)',borderRadius:3,stack:'s'},
+    {label:'Ag.Entrega',data:dag,backgroundColor:'rgba(122,95,168,.55)',borderRadius:3,stack:'s'},
+    {label:'Saiu/Rua',data:den,backgroundColor:'rgba(224,123,58,.65)',borderRadius:3,stack:'s'},
+  ]},options:{...cOpts('minutos'),scales:{x:{stacked:true,ticks:{color:'rgba(255,240,214,.35)',font:{size:10}},grid:{color:'rgba(255,240,214,.05)'}},y:{stacked:true,ticks:{color:'rgba(255,240,214,.35)',font:{size:10}},grid:{color:'rgba(255,240,214,.05)'}}}}});
+}
+
+// ── CANAIS ────────────────────────────────────────────────
+function renderCanais(orders){
+  const el=document.getElementById('canal-content');
+  if(!orders.length){el.innerHTML='<div class="pm-stmsg">nenhum pedido no período</div>';return;}
+  const byCh={};
+  orders.forEach(o=>{if(!byCh[o.channel])byCh[o.channel]=[];byCh[o.channel].push(o);});
+  const sorted=Object.entries(byCh).sort((a,b)=>b[1].length-a[1].length);
+  const maxCount=sorted[0]?.[1].length||1;
+  const paleta=['#D6453D','#e07b3a','#c8983a','#2d9e6b','#4a8fa8','#7a5fa8','#06b6d4','#f43f5e'];
+  const cards=sorted.map(([name,ords],idx)=>{
+    const at=avg(ords.map(o=>o.total)), sla=ords.filter(o=>o.total<=45).length/ords.length*100;
+    const vol=ords.length/orders.length*100, col=paleta[idx%paleta.length];
+    const receita=ords.reduce((s,o)=>s+o.valor,0);
+    return`<div class="pm-rank-card"><div class="pm-rank-name"><span style="width:10px;height:10px;border-radius:50%;background:${col};display:inline-block;flex-shrink:0"></span><span>${name}</span>
+      <span class="pm-rank-badge" style="background:rgba(255,255,255,.04);color:var(--pm-muted);border:1px solid var(--pm-border)">${ords.length} ped.</span></div>
+      <div class="pm-rank-stats">
+        <div class="pm-rank-stat"><div class="pm-rank-stat-v" style="color:${col}">${vol.toFixed(1)}%</div><div class="pm-rank-stat-l">volume</div></div>
+        <div class="pm-rank-stat"><div class="pm-rank-stat-v" style="color:var(--pm-gold)">${at.toFixed(0)}m</div><div class="pm-rank-stat-l">tempo total</div></div>
+        <div class="pm-rank-stat"><div class="pm-rank-stat-v" style="color:var(--pm-ok)">R$${(receita/ords.length).toFixed(0)}</div><div class="pm-rank-stat-l">ticket médio</div></div>
+      </div>
+      <div class="pm-rank-bar-wrap">
+        <div class="pm-rank-bar-lbl"><span>Volume</span><span style="color:${col}">${ords.length} pedidos</span></div>
+        <div class="pm-rank-bar-trk"><div class="pm-rank-bar-fill" style="width:${(ords.length/maxCount*100).toFixed(0)}%;background:${col}"></div></div>
+        <div class="pm-rank-bar-lbl" style="margin-top:4px"><span>SLA ≤ 45min</span><span style="color:${sla>=80?'var(--pm-ok)':'var(--pm-warn)'}">${sla.toFixed(1)}%</span></div>
+        <div class="pm-rank-bar-trk"><div class="pm-rank-bar-fill" style="width:${sla.toFixed(1)}%;background:${sla>=80?'var(--pm-ok)':'var(--pm-warn)'}"></div></div>
+      </div></div>`;
+  }).join('');
+  const cl=sorted.map(([n])=>n), cc=sorted.map(([,o])=>o.length), ca=sorted.map(([,o])=>+avg(o.map(x=>x.total)).toFixed(1));
+  el.innerHTML=`<div class="pm-rank-grid">${cards}</div>
+  <div class="pm-cg">
+    <div class="pm-cc"><div class="pm-ct">Volume por Canal</div><div class="pm-cs">quantidade de pedidos</div><div style="position:relative;height:240px"><canvas id="c-ch-bar"></canvas></div></div>
+    <div class="pm-cc"><div class="pm-ct">Tempo Médio por Canal</div><div class="pm-cs">tempo total médio em minutos</div><div style="position:relative;height:240px"><canvas id="c-ch-time"></canvas></div></div>
+  </div>`;
+  dChart('c-ch-bar'); const ctx1=document.getElementById('c-ch-bar'); if(!ctx1) return;
+  S.charts['c-ch-bar']=new Chart(ctx1,{type:'bar',data:{labels:cl,datasets:[{label:'pedidos',data:cc,backgroundColor:paleta.slice(0,cl.length),borderRadius:3}]},options:{...cOpts('pedidos'),plugins:{...cOpts().plugins,legend:{display:false}}}});
+  dChart('c-ch-time'); const ctx2=document.getElementById('c-ch-time'); if(!ctx2) return;
+  S.charts['c-ch-time']=new Chart(ctx2,{type:'bar',data:{labels:cl,datasets:[{label:'min',data:ca,backgroundColor:paleta.slice(0,cl.length),borderRadius:3}]},options:{...cOpts('minutos'),plugins:{...cOpts().plugins,legend:{display:false}}}});
+}
+
+// ── PEDIDOS ───────────────────────────────────────────────
+function renderPedidos(orders){
+  const el=document.getElementById('pedidos-content');
+  S.tableData=[...orders].sort((a,b)=>b.total-a.total);
+  el.innerHTML=`<div class="pm-tbl-wrap">
+    <div class="pm-tbl-header"><div><div class="pm-ct">Todos os Pedidos</div><div class="pm-cs">ordenado pelo mais demorado · <span id="tbl-count"></span></div></div>
+      <input class="pm-tbl-search" id="tbl-search" placeholder="buscar…" oninput="filterTable(this.value)"></div>
+    <div style="overflow-x:auto"><table><thead><tr>
+      <th onclick="sortTable('id')">PEDIDO</th><th onclick="sortTable('orderTime')">DATA/HORA</th>
+      <th onclick="sortTable('tipoLabel')">TIPO</th><th onclick="sortTable('cozinha')">🍕 MONTAGEM</th>
+      <th onclick="sortTable('aguardando')">⏳ AG.ENTREGA</th><th onclick="sortTable('entrega')">🛵 SAIU/ENTREGA</th>
+      <th onclick="sortTable('total')">⏱ TOTAL ↓</th><th onclick="sortTable('entregador')">ENTREGADOR</th>
+      <th onclick="sortTable('channel')">CANAL</th><th onclick="sortTable('statusLabel')">STATUS</th>
+      <th onclick="sortTable('valor')">VALOR</th>
+    </tr></thead><tbody id="tbl-body"></tbody></table></div>
+    <div style="font-size:10px;color:var(--pm-muted);margin-top:.5rem;text-align:right" id="tbl-foot"></div>
+  </div>`;
+  drawTable(S.tableData);
+}
+function drawTable(data){
+  const maxT=Math.max(...data.map(o=>o.total),1);
+  const rows=data.slice(0,500).map(o=>{
+    const col=sColor(o.total), bw=Math.round(o.total/maxT*60);
+    return`<tr>
+      <td style="color:var(--pm-muted)">${o.id}</td>
+      <td>${o.orderTime.toLocaleDateString('pt-BR')} ${o.orderTime.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td>
+      <td><span style="color:${TIPO_COLS[o.tipo]||'var(--pm-muted)'}">${o.tipoLabel}</span></td>
+      <td style="color:var(--pm-red)">${o.cozinha}m</td>
+      <td style="color:var(--pm-purple)">${o.aguardando}m</td>
+      <td style="color:var(--pm-orange)">${o.entrega}m</td>
+      <td><strong style="color:${col}">${o.total}m</strong><span class="pm-t-bar" style="width:${bw}px;background:${col};opacity:.35"></span></td>
+      <td style="color:var(--pm-muted)">${o.entregador}</td>
+      <td style="color:var(--pm-muted)">${o.channel}</td>
+      <td>${sPill(o.total)}</td>
+      <td style="color:var(--pm-muted)">R$ ${o.valor.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+  const body=document.getElementById('tbl-body'); if(body) body.innerHTML=rows;
+  const cnt=document.getElementById('tbl-count'); if(cnt) cnt.textContent=`${data.length} pedidos`;
+  const foot=document.getElementById('tbl-foot'); if(foot) foot.textContent=data.length>500?`Exibindo 500 de ${data.length}`:`${data.length} pedidos`;
+}
+function filterTable(q){ const lq=q.toLowerCase(); drawTable(S.tableData.filter(o=>o.id.toLowerCase().includes(lq)||o.channel.toLowerCase().includes(lq)||o.entregador.toLowerCase().includes(lq)||o.tipoLabel.toLowerCase().includes(lq)||o.statusLabel.includes(lq))); }
+function sortTable(col){
+  if(S.sortCol===col)S.sortAsc=!S.sortAsc; else{S.sortCol=col;S.sortAsc=['id','orderTime','channel','entregador','tipoLabel'].includes(col);}
+  S.tableData.sort((a,b)=>{let av=a[col],bv=b[col]; if(col==='orderTime'){av=av.getTime();bv=bv.getTime();} if(typeof av==='number')return S.sortAsc?av-bv:bv-av; return S.sortAsc?String(av).localeCompare(String(bv)):String(bv).localeCompare(String(av));});
+  drawTable(S.tableData);
+}
+
+// ── TV ────────────────────────────────────────────────────
+function renderTV(){
+  const el=document.getElementById('tv-content');
+  const now=new Date(), today=new Date(now); today.setHours(0,0,0,0);
+  const orders=S.orders.filter(o=>o.orderTime>=today);
+  const delivery=orders.filter(o=>o.tipo===1);
+  const cz=delivery.map(o=>o.cozinha), ag=delivery.map(o=>o.aguardando), en=delivery.map(o=>o.entrega), to=delivery.map(o=>o.total);
+  const aC=avg(cz), aAg=avg(ag), aE=avg(en), aT=avg(to);
+  const s30=delivery.filter(o=>o.total<=30).length/(delivery.length||1)*100;
+  const s45=delivery.filter(o=>o.total>30&&o.total<=45).length/(delivery.length||1)*100;
+  const sBad=delivery.filter(o=>o.total>45).length/(delivery.length||1)*100;
+  const byDel={}; delivery.forEach(o=>{const k=o.entregador||'—';if(!byDel[k])byDel[k]=[];byDel[k].push(o);});
+  const motos=Object.entries(byDel).filter(([n])=>n!=='—').sort((a,b)=>b[1].length-a[1].length).slice(0,6);
+  const ultimos=[...delivery].sort((a,b)=>b.orderTime-a.orderTime).slice(0,8);
+  const todayWd=now.getDay();
+  const byDay={}; for(let d=0;d<7;d++) byDay[d]=[];
+  S.orders.filter(o=>o.tipo===1).forEach(o=>byDay[o.weekday].push(o.total));
+  const mxA=Math.max(...Object.values(byDay).map(a=>avg(a)||0))||1;
+
+  function tvDtag(v,tgt){ const d=v-tgt; if(Math.abs(d)<.5)return`<span style="position:absolute;top:8px;right:8px;font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(255,240,214,.08);color:var(--pm-muted)">≈ meta</span>`; if(d>0)return`<span style="position:absolute;top:8px;right:8px;font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(201,64,64,.12);color:var(--pm-bad)">+${d.toFixed(1)}</span>`; return`<span style="position:absolute;top:8px;right:8px;font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(45,158,107,.12);color:var(--pm-ok)">${d.toFixed(1)}</span>`; }
+
+  el.innerHTML=`
+  <div class="pm-tv-header">
+    <div>
+      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#FFF0D6">bonità <span style="color:#D6453D">·</span> painel operacional</div>
+      <div style="font-size:10px;color:var(--pm-muted);margin-top:2px">${S.live?'🟢 dados ao vivo · atualiza a cada 2 min':'⚪ modo demonstração'}</div>
+    </div>
+    <div style="text-align:right">
+      <div class="pm-tv-clock" id="tv-clock">${now.toLocaleTimeString('pt-BR')}</div>
+      <div class="pm-tv-date" id="tv-date">${now.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</div>
+    </div>
+  </div>
+
+  <div style="padding:0 1.4rem;margin-bottom:1rem">
+    <div class="pm-tv-kpis">
+      <div class="pm-tv-kpi r">${tvDtag(aC,CONFIG.metaCozinha)}<div class="pm-tv-kpi-lbl">🍕 Montagem</div><div class="pm-tv-kpi-val" style="color:var(--pm-red)">${aC>0?aC.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · meta ${CONFIG.metaCozinha}min</div></div>
+      <div class="pm-tv-kpi p">${tvDtag(aAg,5)}<div class="pm-tv-kpi-lbl">⏳ Ag. Entrega</div><div class="pm-tv-kpi-val" style="color:var(--pm-purple)">${aAg>0?aAg.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · pizza esperando</div></div>
+      <div class="pm-tv-kpi o">${tvDtag(aE,CONFIG.metaEntrega)}<div class="pm-tv-kpi-lbl">🛵 Saiu p/ Entrega</div><div class="pm-tv-kpi-val" style="color:var(--pm-orange)">${aE>0?aE.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · motoboy na rua · meta ${CONFIG.metaEntrega}min</div></div>
+      <div class="pm-tv-kpi g">${tvDtag(aT,CONFIG.metaTotal)}<div class="pm-tv-kpi-lbl">⏱ Total</div><div class="pm-tv-kpi-val" style="color:var(--pm-gold)">${aT>0?aT.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · meta ${CONFIG.metaTotal}min · ${delivery.length} pedidos</div></div>
+    </div>
+
+    <div class="pm-tv-sla" style="margin-bottom:1rem">
+      <div class="pm-tv-sla-card" style="border-top:3px solid var(--pm-ok)"><div class="pm-tv-sla-pct" style="color:var(--pm-ok)">${s30.toFixed(1)}%</div><div class="pm-tv-sla-lbl">≤ 30min — excelente</div></div>
+      <div class="pm-tv-sla-card" style="border-top:3px solid var(--pm-warn)"><div class="pm-tv-sla-pct" style="color:var(--pm-warn)">${s45.toFixed(1)}%</div><div class="pm-tv-sla-lbl">31–45min — ok</div></div>
+      <div class="pm-tv-sla-card" style="border-top:3px solid var(--pm-bad)"><div class="pm-tv-sla-pct" style="color:var(--pm-bad)">${sBad.toFixed(1)}%</div><div class="pm-tv-sla-lbl">> 45min — crítico</div></div>
+    </div>
+
+    <div class="pm-tv-body">
+      <div class="pm-tv-card">
+        <div class="pm-tv-card-title">média por dia da semana</div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+          ${DAYS_PT.map((d,i)=>{const a=byDay[i],av=avg(a),col=av<=30?'var(--pm-ok)':av<=45?'var(--pm-warn)':'var(--pm-bad)';const motos2=new Set(S.orders.filter(o=>o.tipo===1&&o.weekday===i&&o.entregador!=='—').map(o=>o.entregador));return`<div class="pm-wc"><div class="pm-wn ${i===todayWd?'today':''}">${d}</div><div class="pm-wv" style="color:${col}">${av?av.toFixed(0)+'m':'—'}</div><div class="pm-wb" style="background:${col};width:${Math.round(av/mxA*80)}%;min-width:2px;margin:3px auto"></div><div class="pm-wct">${a.length}p</div>${motos2.size>0?`<div class="pm-wct" style="color:var(--pm-orange)">🛵${motos2.size}</div>`:''}</div>`;}).join('')}
+        </div>
+      </div>
+      <div class="pm-tv-card">
+        <div class="pm-tv-card-title">entregadores hoje</div>
+        ${motos.length?motos.map(([name,ords])=>{const ae=avg(ords.map(o=>o.entrega)),at=avg(ords.map(o=>o.total)),col=sColor(at);return`<div class="pm-tv-moto-row"><div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500">🛵 ${name} <span style="font-size:10px;color:var(--pm-muted)">${ords.length}p</span></div><div style="display:flex;gap:12px;font-family:var(--pm-mono);font-size:12px"><div style="text-align:center"><div style="color:var(--pm-orange);font-size:15px;font-weight:600">${ae.toFixed(0)}m</div><div style="font-size:9px;color:var(--pm-muted)">entrega</div></div><div style="text-align:center"><div style="color:${col};font-size:15px;font-weight:600">${at.toFixed(0)}m</div><div style="font-size:9px;color:var(--pm-muted)">total</div></div></div></div>`;}).join(''):'<div style="font-size:12px;color:var(--pm-muted);padding:.5rem">Nenhuma entrega hoje ainda</div>'}
+      </div>
+    </div>
+
+    <div>
+      <div class="pm-tv-card-title" style="margin-bottom:.6rem">últimos pedidos de hoje</div>
+      ${ultimos.length?ultimos.map(o=>{const czW=Math.round(o.cozinha/o.total*100),agW=Math.round(o.aguardando/o.total*100),enW=100-czW-agW,col=sColor(o.total);return`<div class="pm-tv-order-row"><span style="color:var(--pm-muted);min-width:60px">${o.id}</span><span style="color:var(--pm-muted);min-width:50px">${o.orderTime.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span><div style="flex:1;display:flex;gap:3px"><div class="pm-tv-order-seg" style="background:var(--pm-red);width:${czW}%">${o.cozinha}m</div>${o.aguardando>0?`<div class="pm-tv-order-seg" style="background:var(--pm-purple);width:${agW}%">${o.aguardando}m</div>`:''}<div class="pm-tv-order-seg" style="background:var(--pm-orange);width:${enW}%">${o.entrega}m</div></div><strong style="color:${col};min-width:40px;text-align:right">${o.total}m</strong><span style="color:var(--pm-muted);min-width:60px">${o.entregador==='—'?'':o.entregador.split(' ')[0]}</span></div>`;}).join(''):'<div style="font-size:12px;color:var(--pm-muted)">Nenhum pedido de delivery hoje ainda</div>'}
+    </div>
+  </div>`;
+}
+
+// ── GRÁFICOS ──────────────────────────────────────────────
+function renderWd(id,orders){
+  const byDay={}, byM={};
+  for(let d=0;d<7;d++){byDay[d]=[];byM[d]=new Set();}
+  orders.forEach(o=>{byDay[o.weekday].push(o.total); if(o.entregador&&o.entregador!=='—') byM[o.weekday].add(o.entregador);});
+  const tdWd=new Date().getDay(), mxA=Math.max(...Object.values(byDay).map(a=>avg(a)||0))||1;
+  const el=document.getElementById(id); if(!el) return;
+  el.innerHTML=DAYS_PT.map((d,i)=>{
+    const a=byDay[i],av=avg(a),m=byM[i].size, col=av<=30?'var(--pm-ok)':av<=45?'var(--pm-warn)':'var(--pm-bad)';
+    return`<div class="pm-wc"><div class="pm-wn ${i===tdWd?'today':''}">${d}</div><div class="pm-wv" style="color:${col}">${av?av.toFixed(1)+'m':'—'}</div><div class="pm-wb" style="background:${col};width:${Math.round(av/mxA*80)}%;min-width:3px"></div><div class="pm-wct">${a.length}p</div>${m>0?`<div class="pm-wct" style="color:var(--pm-orange)">🛵 ${m}</div>`:''}</div>`;
+  }).join('');
+}
+
+function renderDaily(orders){
+  const bd={};
+  orders.forEach(o=>{const k=o.orderTime.toLocaleDateString('pt-BR'); if(!bd[k]) bd[k]={cz:[],ag:[],en:[],to:[]}; bd[k].cz.push(o.cozinha); bd[k].ag.push(o.aguardando||0); bd[k].en.push(o.entrega); bd[k].to.push(o.total);});
+  const lb=Object.keys(bd).slice(-14);
+  dChart('c-daily'); const ctx=document.getElementById('c-daily'); if(!ctx) return;
+  S.charts['c-daily']=new Chart(ctx,{type:'line',data:{labels:lb,datasets:[
+    {label:'montagem',data:lb.map(k=>+avg(bd[k].cz).toFixed(1)),borderColor:'#D6453D',backgroundColor:'rgba(214,69,61,.07)',tension:.4,pointRadius:2},
+    {label:'ag.entrega',data:lb.map(k=>+avg(bd[k].ag).toFixed(1)),borderColor:'#7a5fa8',backgroundColor:'rgba(122,95,168,.06)',tension:.4,pointRadius:2,borderDash:[3,2]},
+    {label:'entrega',data:lb.map(k=>+avg(bd[k].en).toFixed(1)),borderColor:'#e07b3a',backgroundColor:'rgba(224,123,58,.07)',tension:.4,pointRadius:2},
+    {label:'total',data:lb.map(k=>+avg(bd[k].to).toFixed(1)),borderColor:'#c8983a',backgroundColor:'rgba(200,152,58,.08)',tension:.4,pointRadius:2,borderWidth:2},
+    {label:'meta',data:lb.map(()=>CONFIG.metaTotal),borderColor:'rgba(255,240,214,.2)',borderDash:[6,4],pointRadius:0,borderWidth:1}
+  ]},options:cOpts('minutos')});
+}
+
+function renderHist(orders){
+  const bins=[],lb=[];
+  for(let i=10;i<=65;i+=5){lb.push(`${i}-${i+4}`); bins.push(orders.filter(o=>o.total>=i&&o.total<i+5).length);}
+  const cols=lb.map((_,i)=>{const v=10+i*5; return v<=30?'rgba(45,158,107,.75)':v<=45?'rgba(196,154,42,.75)':'rgba(201,64,64,.75)';});
+  dChart('c-hist'); const ctx=document.getElementById('c-hist'); if(!ctx) return;
+  S.charts['c-hist']=new Chart(ctx,{type:'bar',data:{labels:lb,datasets:[{label:'pedidos',data:bins,backgroundColor:cols,borderRadius:2}]},options:{...cOpts('pedidos'),plugins:{...cOpts().plugins,legend:{display:false}}}});
+}
+
+function renderCmp(orders){
+  const d=S.cmpDay||1, now=new Date(), cols=['#D6453D','#e07b3a','#c8983a','#4a8fa8'], ds=[];
+  for(let w=0;w<4;w++){
+    const tgt=new Date(now); tgt.setDate(now.getDate()-now.getDay()-w*7+d); tgt.setHours(0,0,0,0);
+    const nxt=new Date(tgt); nxt.setDate(tgt.getDate()+1);
+    const day=orders.filter(o=>o.orderTime>=tgt&&o.orderTime<nxt);
+    const byH={}; day.forEach(o=>{if(!byH[o.hour])byH[o.hour]=[]; byH[o.hour].push(o.total);});
+    ds.push({label:tgt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),data:Array.from({length:14},(_,i)=>byH[i+10]?+avg(byH[i+10]).toFixed(1):null),borderColor:cols[w],backgroundColor:'transparent',tension:.4,pointRadius:2,spanGaps:true});
+  }
+  const sub=document.getElementById('del-csub');
+  if(sub) sub.textContent=`${DAYS_FULL[d].toLowerCase()} × 4 semanas — tempo total médio por hora`;
+  dChart('c-cmp'); const ctx=document.getElementById('c-cmp'); if(!ctx) return;
+  S.charts['c-cmp']=new Chart(ctx,{type:'line',data:{labels:Array.from({length:14},(_,i)=>`${i+10}h`),datasets:ds},options:cOpts('min')});
+}
+
+function renderPct(orders){
+  const byDay=DAYS_PT.map((_,i)=>orders.filter(o=>o.weekday===i).map(o=>o.total));
+  dChart('c-pct'); const ctx=document.getElementById('c-pct'); if(!ctx) return;
+  const tc='rgba(255,240,214,.35)', gc='rgba(255,240,214,.05)';
+  S.charts['c-pct']=new Chart(ctx,{type:'bar',data:{labels:DAYS_PT,datasets:[
+    {label:'p25',data:byDay.map(a=>Math.round(pct(a,25))),backgroundColor:'rgba(74,143,168,.3)',stack:'s'},
+    {label:'mediana',data:byDay.map(a=>Math.round(med(a))-Math.round(pct(a,25))),backgroundColor:'rgba(200,152,58,.75)',stack:'s'},
+    {label:'p75',data:byDay.map(a=>Math.round(pct(a,75))-Math.round(med(a))),backgroundColor:'rgba(224,123,58,.4)',stack:'s'},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tc,font:{size:10},boxWidth:10}}},scales:{x:{stacked:true,ticks:{color:tc,font:{size:10}},grid:{color:gc}},y:{stacked:true,ticks:{color:tc,font:{size:10}},grid:{color:gc}}}}});
+}
+
+function renderHeatmap(id,orders){
+  const mx={}; DAYS_PT.forEach((_,di)=>{mx[di]={}; for(let h=10;h<=23;h++) mx[di][h]=[];});
+  orders.forEach(o=>{if(mx[o.weekday]&&o.hour>=10&&o.hour<=23) mx[o.weekday][o.hour].push(o.total);});
+  let gm=0; Object.values(mx).forEach(row=>Object.values(row).forEach(a=>{const av=avg(a); if(av>gm) gm=av;}));
+  const hrs=Array.from({length:14},(_,i)=>i+10);
+  let h=`<div style="display:grid;grid-template-columns:auto repeat(14,1fr);gap:2px">`;
+  h+=`<div></div>${hrs.map(hr=>`<div class="pm-hmh">${hr}h</div>`).join('')}`;
+  DAYS_PT.forEach((day,di)=>{
+    h+=`<div class="pm-hmr">${day}</div>`;
+    hrs.forEach(hr=>{
+      const vals=mx[di][hr], a=avg(vals), p=gm?a/gm:0;
+      const bg=!vals.length?'rgba(255,240,214,.03)':`rgb(${Math.round(2+p*210)},${Math.round(77+p*80)},${Math.round(52-p*40)})`;
+      h+=`<div class="pm-hmc" style="background:${bg}" title="${vals.length?`${day} ${hr}h — ${a.toFixed(1)}min (${vals.length}p)`:'sem dados'}"></div>`;
+    });
+  });
+  h+='</div>'; const el=document.getElementById(id); if(el) el.innerHTML=h;
+}
+
+// ── INIT ──────────────────────────────────────────────────
+loadDemo();
+</script>
+</body>
+</html>

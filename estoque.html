@@ -840,11 +840,12 @@ function showPage(page) { // legacy compat → maps to inner tabs
   const now = new Date();
   const dias = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-  document.getElementById('header-date').textContent =
+  const headerDate = document.getElementById('header-date');
+  if (headerDate) headerDate.textContent =
     `${dias[now.getDay()]}, ${now.getDate()} ${meses[now.getMonth()]} ${now.getFullYear()}`;
-  document.getElementById('dash-semana-desc').textContent =
+  const descEl = document.getElementById('dash-semana-desc');
+  if (descEl) descEl.textContent =
     `Semana de ${now.getDate()}/${now.getMonth()+1} — atualize os dados para ver as projeções`;
-  // Set semana-inicio default
   const dateInput = document.getElementById('semana-inicio');
   if (dateInput) dateInput.value = now.toISOString().slice(0,10);
 })();
@@ -884,7 +885,6 @@ async function syncSaipos() {
   document.getElementById('dot-saipos').className = 'sdot warn';
 
   try {
-    // Fatia em janelas de 14 dias (limite da API Saipos)
     const now = new Date();
     const windows = [];
     for (let i = 0; i < dias; i += 14) {
@@ -894,48 +894,74 @@ async function syncSaipos() {
     }
 
     let allSales = [];
+    let allItems = [];
+
     for (let w = 0; w < windows.length; w++) {
       const { start, end } = windows[w];
       showToast(`Buscando janela ${w+1}/${windows.length}...`, 'info');
+
+      // Busca pedidos (para projeção por dia e valor)
       const sales = await fetchEndpointEstoque(gsUrl, token, 'search_sales', start, end);
       allSales.push(...sales);
+
+      // Busca itens do período (para sabores) — endpoint separado
+      try {
+        const items = await fetchEndpointEstoque(gsUrl, token, 'search_sale_items', start, end);
+        allItems.push(...items);
+      } catch(e) {
+        // Se search_sale_items não existir, tenta sale_items
+        try {
+          const items2 = await fetchEndpointEstoque(gsUrl, token, 'sale_items', start, end);
+          allItems.push(...items2);
+        } catch(e2) {
+          console.warn('Itens não disponíveis para janela', w+1, e2.message);
+        }
+      }
     }
 
     if (!allSales.length) throw new Error('Nenhum pedido retornado');
 
-    // Mapeia search_sales → historico interno
-    // Cada pedido tem sale_items[] (enriquecido pelo Apps Script atualizado)
+    // Log diagnóstico do 1º item — remova depois de confirmar os campos
+    if (allItems.length) {
+      console.log('🔍 sale_items — campos:', Object.keys(allItems[0]));
+      console.log('🔍 sale_items — 1º item:', allItems[0]);
+    } else {
+      console.warn('⚠ Nenhum item retornado — sabores virão dos pedidos');
+    }
+
+    // Mapa de itens por id_sale para join com pedidos
+    const itemsBySale = {};
+    allItems.forEach(item => {
+      const sid = item.id_sale || item.sale_id;
+      if (!sid) return;
+      if (!itemsBySale[sid]) itemsBySale[sid] = [];
+      itemsBySale[sid].push(item);
+    });
+
+    // Monta histórico: uma entrada por item (sabor) por pedido
     STATE.historico = [];
     allSales
       .filter(r => r.canceled !== 'Y' && r.canceled !== true)
       .forEach(r => {
         const data = (r.created_at || r.shift_date || '').slice(0, 10);
         if (!data) return;
-
         const canal = r.partner_sale?.desc_partner_sale ||
                       r.partner_sale?.partner_name      ||
                       (r.id_sale_type === 1 ? 'Delivery' : 'Balcão');
-
-        const items = r.sale_items || r.items || [];
+        const items = itemsBySale[r.id_sale] || r.sale_items || [];
 
         if (items.length > 0) {
           items.forEach(item => {
-            // Campos reais do sale_items Saipos
             const sabor =
               item.desc_product            ||
               item.product_description     ||
               item.description             ||
-              item.name                    ||
-              item.title                   || 'Desconhecido';
-            const tamanho =
-              item.desc_product_complement ||
-              item.complement_description  ||
-              item.size                    || '';
-            if (sabor === 'Desconhecido') return; // pula itens sem nome
+              item.name                    || null;
+            if (!sabor) return;
             STATE.historico.push({
               data,
               sabor:   sabor.trim(),
-              tamanho: tamanho.trim(),
+              tamanho: (item.desc_product_complement || item.complement_description || '').trim(),
               qtd:     parseFloat(item.quantity || item.qtd || 1),
               valor:   parseFloat(r.total_amount || 0),
               tipo:    parseInt(r.id_sale_type || 1),
@@ -943,10 +969,10 @@ async function syncSaipos() {
             });
           });
         } else {
-          // Apps Script antigo — sem itens: registra o pedido sem sabor
+          // Sem itens: registra o pedido sem sabor para manter contagem
           STATE.historico.push({
             data,
-            sabor:   'Sem detalhes',
+            sabor:   '(sem detalhe)',
             tamanho: '',
             qtd:     1,
             valor:   parseFloat(r.total_amount || 0),

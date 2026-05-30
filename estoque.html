@@ -738,7 +738,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.8</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.9</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -886,7 +886,11 @@ function extrairTamanho(texto) {
   return '';
 }
 
+let _syncRunning = false;
 async function syncSaipos() {
+  if (_syncRunning) { showToast('Sincronização já em andamento...', 'info'); return; }
+  _syncRunning = true;
+
   // Lê config do config.js primeiro, depois campos da UI
   const BC = window.BONITA_CONFIG?.saipos;
   const gsUrl  = document.getElementById('cfg-saipos-url')?.value?.trim()  || BC?.gsUrl  || '';
@@ -896,6 +900,7 @@ async function syncSaipos() {
   if (!gsUrl || !token) {
     showToast('Configure o URL do proxy e o token em ⚙ Config', 'error');
     carregarDadosDemo();
+    _syncRunning = false;
     return;
   }
 
@@ -938,11 +943,11 @@ async function syncSaipos() {
     if (!allSales.length) throw new Error('Nenhum pedido retornado');
 
     // ── 3) Estoque atual real (search_ingredient_movement) ──
-    // Pega movimentações dos últimos 30 dias para extrair posição atual
+    // API Saipos limita a 15 dias por consulta — usamos 14 para segurança
     try {
       showToast('Buscando estoque atual...', 'info');
       const stockEnd   = new Date();
-      const stockStart = new Date(); stockStart.setDate(stockStart.getDate() - 30);
+      const stockStart = new Date(); stockStart.setDate(stockStart.getDate() - 14);
 
       const movResp = await fetchEndpointEstoque(
         gsUrl, token, 'search_ingredient_movement',
@@ -1088,6 +1093,8 @@ async function syncSaipos() {
     }
     showToast(`Proxy indisponível (${e.message}) — carregando demo`, 'error');
     carregarDadosDemo();
+  } finally {
+    _syncRunning = false;
   }
 }
 

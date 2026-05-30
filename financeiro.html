@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Financeiro — Bonità</title>
+<link rel="stylesheet" href="style.css">
+<script src="config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+.fin-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:24px; overflow-x:auto; }
+.fin-tab {
+  padding:11px 20px; font-size:.8rem; border:none; background:transparent;
+  color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent;
+  white-space:nowrap; transition:all .18s; font-family:var(--font-body);
+}
+.fin-tab.active { color:var(--cream); border-bottom-color:#4ade80; }
+.fin-tab:hover  { color:var(--cream); }
+
+.fin-page { display:none; }
+.fin-page.active { display:block; }
+
+.cfg-card {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--radius-lg); padding:20px; margin-bottom:24px;
+}
+
+.tbl-wrap { overflow-x:auto; border-radius:var(--radius-md); border:1px solid var(--border); max-height:520px; overflow-y:auto; }
+.tbl { width:100%; border-collapse:collapse; font-size:.82rem; }
+.tbl th {
+  padding:9px 12px; font-size:.62rem; font-weight:500; letter-spacing:2px;
+  text-transform:uppercase; color:var(--text-faint);
+  border-bottom:1px solid var(--border); text-align:left;
+  position:sticky; top:0; background:var(--green-dark); z-index:1;
+}
+.tbl td { padding:8px 12px; border-bottom:1px solid rgba(255,240,214,.05); color:var(--text-muted); }
+.tbl tr:hover td { background:var(--cream-faint); }
+
+.entrada { color:#4ade80; }
+.saida   { color:#f87171; }
+.neutro  { color:var(--cream-dim); }
+
+.cat-bar {
+  display:flex; align-items:center; gap:10px; padding:10px 0;
+  border-bottom:1px solid rgba(255,240,214,.05);
+}
+.cat-name { flex:0 0 30%; font-size:.82rem; color:var(--cream); }
+.cat-bar-wrap { flex:1; background:rgba(255,240,214,.08); border-radius:3px; height:8px; overflow:hidden; }
+.cat-bar-fill { height:100%; border-radius:3px; transition:width .4s; }
+.cat-value { flex:0 0 90px; text-align:right; font-size:.82rem; font-weight:500; }
+
+.chart-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:18px; }
+.chart-card canvas { max-height:300px; }
+
+.filter-row { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
+.filter-row input, .filter-row select { background:rgba(255,240,214,.06); border:1px solid var(--border); border-radius:var(--radius-md); padding:7px 12px; color:var(--cream); font-family:var(--font-body); font-size:.82rem; }
+</style>
+</head>
+<body>
+<div class="checker-bg"></div>
+
+<!-- NAV GLOBAL -->
+<nav class="bonita-nav">
+  <a href="index.html" class="nav-brand">
+    <div class="nav-diamond"></div>
+    Bonità
+  </a>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link">Home</a>
+    <a href="pizza-metrics.html" class="nav-link">PizzaMetrics</a>
+    <a href="estoque.html" class="nav-link">Estoque</a>
+    <a href="financeiro.html" class="nav-link active">Financeiro</a>
+  </div>
+</nav>
+
+<main class="bonita-main">
+
+  <div class="page-header fade-up">
+    <div class="flex-between" style="flex-wrap:wrap;gap:12px">
+      <div>
+        <div class="page-header-eyebrow">Análise financeira</div>
+        <div class="page-header-title">Fluxo <span>Financeiro</span></div>
+        <div class="page-header-desc" id="fin-periodo-desc">Entradas, saídas e categorização — integração Saipos</div>
+      </div>
+      <div class="flex-gap">
+        <select class="input-field" id="fin-periodo" style="height:36px;font-size:.8rem">
+          <option value="7">⚡ 7 dias (rápido)</option>
+          <option value="30" selected>30 dias</option>
+          <option value="60">60 dias</option>
+          <option value="90">90 dias</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="sincronizarFinanceiro()">↻ Sincronizar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid" style="margin-bottom:24px">
+    <div class="kpi-card">
+      <div class="kpi-label">Entradas</div>
+      <div class="kpi-value green" id="kpi-entradas">–</div>
+      <div class="kpi-delta good" id="kpi-entradas-sub">Aguardando sync</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Saídas</div>
+      <div class="kpi-value red" id="kpi-saidas">–</div>
+      <div class="kpi-delta bad" id="kpi-saidas-sub">–</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Saldo líquido</div>
+      <div class="kpi-value" id="kpi-saldo">–</div>
+      <div class="kpi-delta" id="kpi-saldo-sub">–</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Lançamentos</div>
+      <div class="kpi-value" id="kpi-count">–</div>
+      <div class="kpi-delta" id="kpi-count-sub">No período</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="fin-tabs">
+    <button class="fin-tab active" onclick="showFinTab('overview',this)">📊 Visão Geral</button>
+    <button class="fin-tab" onclick="showFinTab('entradas',this)">📈 Entradas</button>
+    <button class="fin-tab" onclick="showFinTab('saidas',this)">📉 Saídas</button>
+    <button class="fin-tab" onclick="showFinTab('categorias',this)">🏷 Categorias</button>
+    <button class="fin-tab" onclick="showFinTab('lancamentos',this)">📋 Lançamentos</button>
+  </div>
+
+  <!-- ══ OVERVIEW ══ -->
+  <div class="fin-page active" id="fin-page-overview">
+    <div class="grid-2" style="margin-bottom:20px">
+      <div class="chart-card">
+        <div class="card-title" style="margin-bottom:12px">Fluxo diário (entradas vs saídas)</div>
+        <canvas id="chart-fluxo"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="card-title" style="margin-bottom:12px">Saldo acumulado</div>
+        <canvas id="chart-saldo"></canvas>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="chart-card">
+        <div class="card-title" style="margin-bottom:12px">Entradas por categoria</div>
+        <div id="overview-entradas-cats"><div class="faint small">Sincronize para ver</div></div>
+      </div>
+      <div class="chart-card">
+        <div class="card-title" style="margin-bottom:12px">Saídas por categoria</div>
+        <div id="overview-saidas-cats"><div class="faint small">Sincronize para ver</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ ENTRADAS ══ -->
+  <div class="fin-page" id="fin-page-entradas">
+    <div class="grid-2" style="margin-bottom:20px">
+      <div class="kpi-card">
+        <div class="kpi-label">Total de entradas</div>
+        <div class="kpi-value green" id="ent-total">–</div>
+        <div class="kpi-delta good" id="ent-media">Média diária: –</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Maior entrada</div>
+        <div class="kpi-value" style="color:#4ade80;font-size:1.5rem" id="ent-maior">–</div>
+        <div class="kpi-delta" id="ent-maior-desc">–</div>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-bottom:20px">
+      <div class="card-title" style="margin-bottom:12px">Entradas por categoria (todas)</div>
+      <div id="entradas-cats-full"></div>
+    </div>
+    <div class="chart-card">
+      <div class="card-title" style="margin-bottom:12px">Por forma de pagamento</div>
+      <div id="entradas-pagamento"></div>
+    </div>
+  </div>
+
+  <!-- ══ SAÍDAS ══ -->
+  <div class="fin-page" id="fin-page-saidas">
+    <div class="grid-2" style="margin-bottom:20px">
+      <div class="kpi-card">
+        <div class="kpi-label">Total de saídas</div>
+        <div class="kpi-value red" id="sai-total">–</div>
+        <div class="kpi-delta bad" id="sai-media">Média diária: –</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Maior saída</div>
+        <div class="kpi-value" style="color:#f87171;font-size:1.5rem" id="sai-maior">–</div>
+        <div class="kpi-delta" id="sai-maior-desc">–</div>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-bottom:20px">
+      <div class="card-title" style="margin-bottom:12px">Saídas por categoria</div>
+      <div id="saidas-cats-full"></div>
+    </div>
+    <div class="chart-card">
+      <div class="card-title" style="margin-bottom:12px">Top fornecedores (saídas)</div>
+      <div id="saidas-fornecedores"></div>
+    </div>
+  </div>
+
+  <!-- ══ CATEGORIAS ══ -->
+  <div class="fin-page" id="fin-page-categorias">
+    <div class="filter-row">
+      <select id="cat-tipo" onchange="renderCategorias()">
+        <option value="todas">Todas</option>
+        <option value="entrada">Só entradas</option>
+        <option value="saida">Só saídas</option>
+      </select>
+      <input type="text" id="cat-busca" placeholder="Buscar categoria..." oninput="renderCategorias()">
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Categoria</th><th>Tipo</th><th>Lançamentos</th><th>Total</th><th>Média</th></tr></thead>
+        <tbody id="tbody-categorias"><tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-faint)">Sincronize para ver as categorias</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══ LANÇAMENTOS ══ -->
+  <div class="fin-page" id="fin-page-lancamentos">
+    <div class="filter-row">
+      <select id="lanc-tipo" onchange="renderLancamentos()">
+        <option value="todos">Todos</option>
+        <option value="entrada">Só entradas</option>
+        <option value="saida">Só saídas</option>
+      </select>
+      <select id="lanc-pago" onchange="renderLancamentos()">
+        <option value="todos">Pagos e pendentes</option>
+        <option value="Y">Só pagos</option>
+        <option value="N">Só pendentes</option>
+      </select>
+      <input type="text" id="lanc-busca" placeholder="Buscar..." oninput="renderLancamentos()">
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Conta</th><th>Pago</th><th style="text-align:right">Valor</th></tr></thead>
+        <tbody id="tbody-lancamentos"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-faint)">Sincronize para ver os lançamentos</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<footer class="bonita-footer">
+  <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
+  <div class="footer-text">Bonità Pizzaria · Financeiro · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.7</span></div>
+</footer>
+
+<div id="toast-container"></div>
+
+<script>
+// ══════════════════════════════════════════
+// ESTADO
+// ══════════════════════════════════════════
+const FIN = {
+  lancamentos: [],
+  filtered: [],
+  charts: {},
+};
+
+const FMT_BRL = v => 'R$ ' + (v||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+function showToast(msg, type='info') {
+  const t = document.createElement('div');
+  t.className = `toast ${type==='success'?'success':type==='error'?'error':'info'}`;
+  t.textContent = msg;
+  document.getElementById('toast-container').appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+function showFinTab(page, btn) {
+  document.querySelectorAll('.fin-page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.fin-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('fin-page-'+page).classList.add('active');
+  btn.classList.add('active');
+  if (page === 'categorias')   renderCategorias();
+  if (page === 'lancamentos')  renderLancamentos();
+  if (page === 'entradas')     renderEntradas();
+  if (page === 'saidas')       renderSaidas();
+}
+
+// ══════════════════════════════════════════
+// FETCH SAIPOS — mesmo padrão do estoque/pm
+// ══════════════════════════════════════════
+async function fetchFin(gsUrl, token, start, end){
+  const fmt = d => d.toISOString().slice(0,19);
+  const bearer = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+  const params = new URLSearchParams({
+    token: bearer,
+    endpoint: 'search_financial_transactions',
+    col: 'date',
+    start: fmt(start),
+    end:   fmt(end),
+    limit: 1000,
+  });
+  const resp = await fetch(`${gsUrl}?${params}`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const json = await resp.json();
+  if (json.error) throw new Error(json.error);
+  return Array.isArray(json) ? json : [];
+}
+
+async function sincronizarFinanceiro() {
+  const cfg   = window.BONITA_CONFIG?.saipos;
+  const gsUrl = cfg?.gsUrl;
+  const token = cfg?.token;
+  const dias  = parseInt(document.getElementById('fin-periodo').value);
+
+  if (!gsUrl || !token) {
+    showToast('Configure credenciais em config.js', 'error');
+    return;
+  }
+
+  showToast('Buscando lançamentos...', 'info');
+
+  try {
+    // Janelas de 30 dias
+    const now = new Date();
+    const windows = [];
+    for (let i = 0; i < dias; i += 30) {
+      const end   = new Date(now); end.setDate(now.getDate() - i);
+      const start = new Date(now); start.setDate(now.getDate() - Math.min(i + 30, dias));
+      windows.push({ start, end });
+    }
+
+    let all = [];
+    for (let w = 0; w < windows.length; w++) {
+      showToast(`Janela ${w+1}/${windows.length}...`, 'info');
+      const recs = await fetchFin(gsUrl, token, windows[w].start, windows[w].end);
+      all.push(...recs);
+      if (w < windows.length - 1) await new Promise(r => setTimeout(r, 400));
+    }
+
+    if (!all.length) { showToast('Sem lançamentos no período', 'info'); return; }
+
+    console.log(`✓ Financeiro: ${all.length} lançamentos`);
+    if (all[0]) console.log('1º lançamento:', all[0]);
+
+    // Mapeia normalizado
+    FIN.lancamentos = all.map(r => ({
+      data:      (r.date || r.payment_date || r.created_at || '').slice(0,10),
+      desc:      r.desc_store_fin_transaction || '',
+      categoria: r.desc_store_category_financial || 'Sem categoria',
+      conta:     r.desc_store_bank_account || '',
+      pagamento: r.desc_store_payment_method || '',
+      fornecedor:r.provider_trade_name || '',
+      pago:      r.paid || 'N',
+      amount:    parseFloat(r.amount || 0),
+      tipo:      parseFloat(r.amount || 0) >= 0 ? 'entrada' : 'saida',
+    })).filter(r => r.data);
+
+    document.getElementById('fin-periodo-desc').textContent =
+      `${FIN.lancamentos.length} lançamentos · últimos ${dias} dias · sincronizado`;
+
+    renderAll();
+    showToast(`✓ ${FIN.lancamentos.length} lançamentos carregados`, 'success');
+
+  } catch(e) {
+    showToast('Erro: ' + e.message, 'error');
+    console.error(e);
+  }
+}
+
+// ══════════════════════════════════════════
+// RENDER MASTER
+// ══════════════════════════════════════════
+function renderAll() {
+  renderKPIs();
+  renderCharts();
+  renderEntradas();
+  renderSaidas();
+  renderCategorias();
+  renderLancamentos();
+  renderOverviewCats();
+}
+
+function renderKPIs() {
+  const entradas = FIN.lancamentos.filter(r => r.tipo === 'entrada');
+  const saidas   = FIN.lancamentos.filter(r => r.tipo === 'saida');
+  const totalE = entradas.reduce((s,r) => s + r.amount, 0);
+  const totalS = Math.abs(saidas.reduce((s,r) => s + r.amount, 0));
+  const saldo = totalE - totalS;
+
+  document.getElementById('kpi-entradas').textContent = FMT_BRL(totalE);
+  document.getElementById('kpi-entradas-sub').textContent = `${entradas.length} lançamentos`;
+
+  document.getElementById('kpi-saidas').textContent = FMT_BRL(totalS);
+  document.getElementById('kpi-saidas-sub').textContent = `${saidas.length} lançamentos`;
+
+  const saldoEl = document.getElementById('kpi-saldo');
+  saldoEl.textContent = FMT_BRL(saldo);
+  saldoEl.className = saldo >= 0 ? 'kpi-value green' : 'kpi-value red';
+  document.getElementById('kpi-saldo-sub').textContent = saldo >= 0 ? '▲ Positivo' : '▼ Negativo';
+  document.getElementById('kpi-saldo-sub').className = 'kpi-delta ' + (saldo >= 0 ? 'good' : 'bad');
+
+  document.getElementById('kpi-count').textContent = FIN.lancamentos.length;
+}
+
+function renderCharts() {
+  // Agrupa por dia
+  const byDay = {};
+  FIN.lancamentos.forEach(r => {
+    if (!byDay[r.data]) byDay[r.data] = { entrada: 0, saida: 0 };
+    if (r.tipo === 'entrada') byDay[r.data].entrada += r.amount;
+    else byDay[r.data].saida += Math.abs(r.amount);
+  });
+  const dias = Object.keys(byDay).sort();
+  const entradasArr = dias.map(d => byDay[d].entrada);
+  const saidasArr   = dias.map(d => byDay[d].saida);
+
+  // Saldo acumulado
+  let acum = 0;
+  const saldoArr = dias.map(d => { acum += byDay[d].entrada - byDay[d].saida; return acum; });
+
+  const labelsCurto = dias.map(d => d.slice(5)); // MM-DD
+
+  const opts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: 'var(--cream-dim)', font: { size: 11 } } } },
+    scales: {
+      x: { ticks: { color: 'var(--text-faint)', font: { size: 10 } }, grid: { color: 'rgba(255,240,214,.05)' } },
+      y: { ticks: { color: 'var(--text-faint)', font: { size: 10 }, callback: v => 'R$' + v.toLocaleString('pt-BR') }, grid: { color: 'rgba(255,240,214,.05)' } },
+    },
+  };
+
+  if (FIN.charts.fluxo) FIN.charts.fluxo.destroy();
+  FIN.charts.fluxo = new Chart(document.getElementById('chart-fluxo').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: labelsCurto,
+      datasets: [
+        { label: 'Entradas', data: entradasArr, backgroundColor: 'rgba(74,222,128,.7)', borderRadius: 3 },
+        { label: 'Saídas',   data: saidasArr,   backgroundColor: 'rgba(248,113,113,.7)', borderRadius: 3 },
+      ],
+    },
+    options: opts,
+  });
+
+  if (FIN.charts.saldo) FIN.charts.saldo.destroy();
+  FIN.charts.saldo = new Chart(document.getElementById('chart-saldo').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: labelsCurto,
+      datasets: [{
+        label: 'Saldo acumulado',
+        data: saldoArr,
+        borderColor: '#A3CBD9',
+        backgroundColor: 'rgba(163,203,217,.15)',
+        fill: true,
+        tension: .3,
+        pointRadius: 2,
+      }],
+    },
+    options: opts,
+  });
+}
+
+function renderOverviewCats() {
+  const cats = {};
+  FIN.lancamentos.forEach(r => {
+    const key = r.categoria;
+    if (!cats[key]) cats[key] = { entrada: 0, saida: 0, count: 0 };
+    if (r.tipo === 'entrada') cats[key].entrada += r.amount;
+    else cats[key].saida += Math.abs(r.amount);
+    cats[key].count++;
+  });
+
+  const entradasArr = Object.entries(cats).filter(([,v]) => v.entrada > 0).sort((a,b) => b[1].entrada - a[1].entrada).slice(0, 6);
+  const saidasArr   = Object.entries(cats).filter(([,v]) => v.saida   > 0).sort((a,b) => b[1].saida   - a[1].saida).slice(0, 6);
+
+  const maxE = entradasArr.length > 0 ? entradasArr[0][1].entrada : 1;
+  const maxS = saidasArr.length > 0 ? saidasArr[0][1].saida : 1;
+
+  document.getElementById('overview-entradas-cats').innerHTML = entradasArr.map(([name, v]) => `
+    <div class="cat-bar">
+      <div class="cat-name">${name}</div>
+      <div class="cat-bar-wrap"><div class="cat-bar-fill" style="background:#4ade80;width:${(v.entrada/maxE*100).toFixed(1)}%"></div></div>
+      <div class="cat-value entrada">${FMT_BRL(v.entrada)}</div>
+    </div>`).join('') || '<div class="faint small">Sem entradas</div>';
+
+  document.getElementById('overview-saidas-cats').innerHTML = saidasArr.map(([name, v]) => `
+    <div class="cat-bar">
+      <div class="cat-name">${name}</div>
+      <div class="cat-bar-wrap"><div class="cat-bar-fill" style="background:#f87171;width:${(v.saida/maxS*100).toFixed(1)}%"></div></div>
+      <div class="cat-value saida">${FMT_BRL(v.saida)}</div>
+    </div>`).join('') || '<div class="faint small">Sem saídas</div>';
+}
+
+function renderEntradas() {
+  const entradas = FIN.lancamentos.filter(r => r.tipo === 'entrada');
+  if (!entradas.length) return;
+  const total = entradas.reduce((s,r) => s + r.amount, 0);
+  const dias = new Set(entradas.map(r => r.data)).size || 1;
+  document.getElementById('ent-total').textContent = FMT_BRL(total);
+  document.getElementById('ent-media').textContent = `Média diária: ${FMT_BRL(total/dias)}`;
+
+  const maior = entradas.reduce((m,r) => r.amount > m.amount ? r : m, entradas[0]);
+  document.getElementById('ent-maior').textContent = FMT_BRL(maior.amount);
+  document.getElementById('ent-maior-desc').textContent = `${maior.desc.slice(0,40)} · ${maior.data}`;
+
+  // Por categoria (todas)
+  const cats = {};
+  entradas.forEach(r => {
+    if (!cats[r.categoria]) cats[r.categoria] = 0;
+    cats[r.categoria] += r.amount;
+  });
+  const arr = Object.entries(cats).sort((a,b) => b[1] - a[1]);
+  const max = arr[0]?.[1] || 1;
+  document.getElementById('entradas-cats-full').innerHTML = arr.map(([n,v]) => `
+    <div class="cat-bar">
+      <div class="cat-name">${n}</div>
+      <div class="cat-bar-wrap"><div class="cat-bar-fill" style="background:#4ade80;width:${(v/max*100).toFixed(1)}%"></div></div>
+      <div class="cat-value entrada">${FMT_BRL(v)}</div>
+    </div>`).join('');
+
+  // Por forma de pagamento
+  const pags = {};
+  entradas.forEach(r => {
+    const k = r.pagamento || '(não informado)';
+    if (!pags[k]) pags[k] = 0;
+    pags[k] += r.amount;
+  });
+  const pArr = Object.entries(pags).sort((a,b) => b[1] - a[1]);
+  const pMax = pArr[0]?.[1] || 1;
+  document.getElementById('entradas-pagamento').innerHTML = pArr.map(([n,v]) => `
+    <div class="cat-bar">
+      <div class="cat-name">${n}</div>
+      <div class="cat-bar-wrap"><div class="cat-bar-fill" style="background:var(--blue);width:${(v/pMax*100).toFixed(1)}%"></div></div>
+      <div class="cat-value">${FMT_BRL(v)}</div>
+    </div>`).join('');
+}
+
+function renderSaidas() {
+  const saidas = FIN.lancamentos.filter(r => r.tipo === 'saida');
+  if (!saidas.length) return;
+  const total = Math.abs(saidas.reduce((s,r) => s + r.amount, 0));
+  const dias = new Set(saidas.map(r => r.data)).size || 1;
+  document.getElementById('sai-total').textContent = FMT_BRL(total);
+  document.getElementById('sai-media').textContent = `Média diária: ${FMT_BRL(total/dias)}`;
+
+  const maior = saidas.reduce((m,r) => Math.abs(r.amount) > Math.abs(m.amount) ? r : m, saidas[0]);
+  document.getElementById('sai-maior').textContent = FMT_BRL(Math.abs(maior.amount));
+  document.getElementById('sai-maior-desc').textContent = `${maior.desc.slice(0,40)} · ${maior.data}`;
+
+  // Por categoria
+  const cats = {};
+  saidas.forEach(r => {
+    if (!cats[r.categoria]) cats[r.categoria] = 0;
+    cats[r.categoria] += Math.abs(r.amount);
+  });
+  const arr = Object.entries(cats).sort((a,b) => b[1] - a[1]);
+  const max = arr[0]?.[1] || 1;
+  document.getElementById('saidas-cats-full').innerHTML = arr.map(([n,v]) => `
+    <div class="cat-bar">
+      <div class="cat-name">${n}</div>
+      <div class="cat-bar-wrap"><div class="cat-bar-fill" style="background:#f87171;width:${(v/max*100).toFixed(1)}%"></div></div>
+      <div class="cat-value saida">${FMT_BRL(v)}</div>
+    </div>`).join('');
+
+  // Top fornecedores
+  const fornec = {};
+  saidas.forEach(r => {
+    const k = r.fornecedor || '(sem fornecedor)';
+    if (!fornec[k]) fornec[k] = 0;
+    fornec[k] += Math.abs(r.amount);
+  });
+  const fArr = Object.entries(fornec).sort((a,b) => b[1] - a[1]).slice(0, 10);
+  const fMax = fArr[0]?.[1] || 1;
+  document.getElementById('saidas-fornecedores').innerHTML = fArr.map(([n,v]) => `
+    <div class="cat-bar">
+      <div class="cat-name">${n}</div>
+      <div class="cat-bar-wrap"><div class="cat-bar-fill" style="background:rgba(214,69,61,.7);width:${(v/fMax*100).toFixed(1)}%"></div></div>
+      <div class="cat-value saida">${FMT_BRL(v)}</div>
+    </div>`).join('');
+}
+
+function renderCategorias() {
+  const tipoF = document.getElementById('cat-tipo')?.value || 'todas';
+  const busca = document.getElementById('cat-busca')?.value.toLowerCase() || '';
+
+  let dados = FIN.lancamentos;
+  if (tipoF !== 'todas') dados = dados.filter(r => r.tipo === tipoF);
+
+  const cats = {};
+  dados.forEach(r => {
+    if (busca && !r.categoria.toLowerCase().includes(busca)) return;
+    const k = `${r.categoria}|${r.tipo}`;
+    if (!cats[k]) cats[k] = { nome: r.categoria, tipo: r.tipo, total: 0, count: 0 };
+    cats[k].total += Math.abs(r.amount);
+    cats[k].count++;
+  });
+
+  const arr = Object.values(cats).sort((a,b) => b.total - a.total);
+  const rows = arr.map(c => `
+    <tr>
+      <td class="bold" style="color:var(--cream)">${c.nome}</td>
+      <td><span class="badge ${c.tipo==='entrada'?'badge-green':'badge-red'}">${c.tipo}</span></td>
+      <td>${c.count}</td>
+      <td class="${c.tipo}">${FMT_BRL(c.total)}</td>
+      <td>${FMT_BRL(c.total/c.count)}</td>
+    </tr>`).join('');
+  document.getElementById('tbody-categorias').innerHTML = rows || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-faint)">Sem dados</td></tr>';
+}
+
+function renderLancamentos() {
+  const tipoF = document.getElementById('lanc-tipo')?.value || 'todos';
+  const pagoF = document.getElementById('lanc-pago')?.value || 'todos';
+  const busca = document.getElementById('lanc-busca')?.value.toLowerCase() || '';
+
+  let dados = FIN.lancamentos;
+  if (tipoF !== 'todos') dados = dados.filter(r => r.tipo === tipoF);
+  if (pagoF !== 'todos') dados = dados.filter(r => r.pago === pagoF);
+  if (busca) dados = dados.filter(r =>
+    r.desc.toLowerCase().includes(busca) ||
+    r.categoria.toLowerCase().includes(busca) ||
+    r.fornecedor.toLowerCase().includes(busca)
+  );
+
+  dados.sort((a,b) => b.data.localeCompare(a.data));
+  const rows = dados.slice(0, 500).map(r => `
+    <tr>
+      <td>${r.data.split('-').reverse().join('/')}</td>
+      <td>${r.desc}${r.fornecedor ? `<br><span class="faint" style="font-size:.7rem">${r.fornecedor}</span>` : ''}</td>
+      <td><span class="badge badge-cream" style="font-size:.6rem">${r.categoria}</span></td>
+      <td>${r.conta}</td>
+      <td>${r.pago === 'Y' ? '<span style="color:#4ade80">✓</span>' : '<span style="color:#fac800">○</span>'}</td>
+      <td style="text-align:right" class="bold ${r.tipo}">${r.amount < 0 ? '-' : ''}${FMT_BRL(Math.abs(r.amount))}</td>
+    </tr>`).join('');
+  document.getElementById('tbody-lancamentos').innerHTML =
+    rows || '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-faint)">Nenhum lançamento</td></tr>';
+}
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  showToast('Clique em ↻ Sincronizar para puxar lançamentos do Saipos', 'info');
+});
+</script>
+</body>
+</html>

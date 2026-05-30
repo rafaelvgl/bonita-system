@@ -377,14 +377,12 @@
     <div class="section-header">
       <div>
         <div class="section-title">Controle de Estoque</div>
-        <div class="section-desc">Matéria-prima atual vs. necessidade 7 dias · posição 22/05/2026</div>
+        <div class="section-desc">Matéria-prima atual vs. necessidade 7 dias · dados sincronizados via Saipos</div>
       </div>
       <div class="flex-gap">
-        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('input-pdf-estoque').click()">📄 Importar PDF</button>
         <button class="btn btn-primary btn-sm" onclick="analisarEstoque()">✦ Analisar com IA</button>
       </div>
     </div>
-    <input type="file" id="input-pdf-estoque" accept=".pdf,.xlsx,.csv" style="display:none" onchange="processarEstoque(this)">
 
     <div class="grid-2" style="margin-bottom:20px">
       <div>
@@ -392,15 +390,7 @@
           <span>⚠</span>
           <span><strong id="nCrit-label">30 itens críticos</strong> — vão faltar nos próximos 7 dias.</span>
         </div>
-        <div class="upload-zone" id="upload-zone-estoque" onclick="document.getElementById('input-pdf-estoque').click()"
-             ondragover="event.preventDefault();this.classList.add('drag-over')"
-             ondragleave="this.classList.remove('drag-over')"
-             ondrop="handleDrop(event,'estoque')">
-          <div class="upload-icon">✅</div>
-          <div class="upload-title">Estoque carregado — 22/05/2026</div>
-          <div class="upload-hint" id="upload-hint-txt">Clique para atualizar · PDF, Excel, CSV</div>
-        </div>
-        <div class="card" style="margin-top:14px" id="card-estoque-resumo">
+        <div class="card" id="card-estoque-resumo">
           <div class="card-title" style="margin-bottom:12px">Resumo do estoque</div>
           <div id="estoque-resumo-content"></div>
         </div>
@@ -535,22 +525,12 @@
         <div class="section-title">Receitas das Pizzas</div>
         <div class="section-desc">Base de ingredientes por sabor — usada no cálculo de consumo</div>
       </div>
-      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('input-pdf-receitas').click()">📄 Importar</button>
     </div>
-    <input type="file" id="input-pdf-receitas" accept=".pdf,.xlsx,.csv" style="display:none" onchange="processarReceitas(this)">
     <div class="grid-2">
       <div>
-        <div class="upload-zone" id="upload-zone-receitas" onclick="document.getElementById('input-pdf-receitas').click()"
-             ondragover="event.preventDefault();this.classList.add('drag-over')"
-             ondragleave="this.classList.remove('drag-over')"
-             ondrop="handleDrop(event,'receitas')">
-          <div class="upload-icon">✅</div>
-          <div class="upload-title">Receitas carregadas</div>
-          <div class="upload-hint">Clique para atualizar · PDF, Excel ou CSV</div>
-        </div>
-        <div class="card" style="margin-top:14px">
-          <div class="bold small" style="margin-bottom:8px">Formato esperado</div>
-          <div class="small faint" style="line-height:1.8">• Nome do sabor<br>• Tamanho (Broto/Grande)<br>• Ingredientes com quantidade<br>• Unidade de medida (g, ml, kg, un)</div>
+        <div class="card">
+          <div class="bold small" style="margin-bottom:8px">Receitas cadastradas</div>
+          <div class="small faint" style="line-height:1.8">As fichas técnicas estão carregadas no sistema com nome do sabor, tamanho, ingredientes e quantidades. Use esses dados no cálculo de consumo da projeção.</div>
         </div>
       </div>
       <div class="card">
@@ -738,7 +718,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.9</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.10</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -869,7 +849,10 @@ async function fetchEndpointEstoque(gsUrl, token, endpoint, start, end, limit=10
   const resp = await fetch(`${gsUrl}?${params}`);
   if (!resp.ok) throw new Error(`${endpoint} HTTP ${resp.status}`);
   const json = await resp.json();
-  if (json.error) throw new Error(`Saipos ${endpoint}: ${json.error}`);
+  if (json === null || json === undefined) throw new Error(`${endpoint}: resposta vazia`);
+  if (typeof json === 'object' && !Array.isArray(json) && json.error) {
+    throw new Error(`Saipos ${endpoint}: ${json.error}`);
+  }
   return Array.isArray(json) ? json : [];
 }
 

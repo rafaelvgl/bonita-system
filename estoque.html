@@ -592,6 +592,7 @@
           <div style="margin-bottom:12px">
             <label class="faint" style="font-size:.68rem;letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:5px">Período de histórico</label>
             <select class="input-field" id="cfg-historico" style="height:40px">
+              <option value="7">⚡ 7 dias (teste rápido)</option>
               <option value="30">Últimos 30 dias</option>
               <option value="60">Últimos 60 dias</option>
               <option value="90" selected>Últimos 90 dias</option>
@@ -600,9 +601,7 @@
             </select>
           </div>
           <button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="salvarSaipos()">💾 Salvar e testar conexão</button>
-          <button class="btn btn-outline btn-sm" style="width:100%;margin-top:6px" onclick="diagnosticarEndpoints()">🔍 Diagnosticar endpoints de itens</button>
           <div id="saipos-status-msg" class="small" style="display:none;margin-top:10px"></div>
-          <div id="diag-result" style="display:none;margin-top:12px;background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;font-size:.75rem;font-family:monospace;color:var(--cream-dim);white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
         </div>
       </div>
     </div>
@@ -738,7 +737,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.5</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.6</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -819,8 +818,10 @@ const STATE = {
   },
   historico: [],
   estoque: [],
+  estoqueReal: [],
   receitas: [],
   projecao: [],
+  financeiro: [],
   preparados: [{"nome": "Frango Desfiado", "validade_dias": 3, "qtd_base": "120g/porção (rendimento 84%)", "categoria": "proteína"}, {"nome": "Brócolis Preparado", "validade_dias": 2, "qtd_base": "120g/porção", "categoria": "vegetal"}, {"nome": "Costela Desfiada", "validade_dias": 3, "qtd_base": "80g/porção (rendimento 88,4%)", "categoria": "proteína"}, {"nome": "Filet Mignon Iscas", "validade_dias": 2, "qtd_base": "80g/porção", "categoria": "proteína"}, {"nome": "Linguiça Toscana", "validade_dias": 4, "qtd_base": "100g/porção (rendimento 61,6%)", "categoria": "proteína"}, {"nome": "Pernil Preparado", "validade_dias": 3, "qtd_base": "100g/porção (rendimento 88,4%)", "categoria": "proteína"}, {"nome": "Creme de Alho", "validade_dias": 5, "qtd_base": "conforme demanda", "categoria": "molho"}, {"nome": "Creme de Parmesão", "validade_dias": 4, "qtd_base": "conforme demanda", "categoria": "molho"}, {"nome": "Creme de Confeiteiro", "validade_dias": 3, "qtd_base": "conforme demanda", "categoria": "creme doce"}, {"nome": "Molho Chimichurri", "validade_dias": 7, "qtd_base": "conforme demanda", "categoria": "molho"}, {"nome": "Molho de Tomate Artesanal", "validade_dias": 5, "qtd_base": "conforme demanda", "categoria": "molho"}, {"nome": "Geléia de Morango", "validade_dias": 7, "qtd_base": "conforme demanda", "categoria": "doce"}, {"nome": "Massa Longa Fermentação", "validade_dias": 3, "qtd_base": "400g Grande / 200g Broto", "categoria": "massa"}, {"nome": "Isca de Picanha", "validade_dias": 2, "qtd_base": "conforme demanda", "categoria": "proteína"}],
   receitasCarregadas: true,
   ajuste_geral: 0,
@@ -860,16 +861,28 @@ function showPage(page) { // legacy compat → maps to inner tabs
 // fetchEndpoint(gsUrl, token, endpoint, start, end, limit)
 // Extrai search_sales: sabores, qtd, valor, data
 // ══════════════════════════════════════════════════════════
-async function fetchEndpointEstoque(gsUrl, token, endpoint, start, end, limit=1000){
+async function fetchEndpointEstoque(gsUrl, token, endpoint, start, end, limit=1000, col='created_at'){
   const fmt = d => d.toISOString().slice(0,19);
-  // Garante prefixo Bearer — igual ao pizza-metrics
   const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-  const params = new URLSearchParams({ token: bearerToken, endpoint, col:'created_at', start:fmt(start), end:fmt(end), limit });
+  const params = new URLSearchParams({ token: bearerToken, endpoint, col, start:fmt(start), end:fmt(end), limit });
   const resp = await fetch(`${gsUrl}?${params}`);
   if (!resp.ok) throw new Error(`${endpoint} HTTP ${resp.status}`);
   const json = await resp.json();
   if (json.error) throw new Error(`Saipos ${endpoint}: ${json.error}`);
   return Array.isArray(json) ? json : [];
+}
+
+// Extrai tamanho da pizza do texto do produto
+// Ex: "Pizza Gigante 8 Fatias" → "Gigante"
+function extrairTamanho(texto) {
+  if (!texto) return '';
+  const t = texto.toLowerCase();
+  if (t.includes('gigante'))    return 'Gigante';
+  if (t.includes('grande'))     return 'Grande';
+  if (t.includes('média') || t.includes('media')) return 'Média';
+  if (t.includes('broto'))      return 'Broto';
+  if (t.includes('pequena'))    return 'Pequena';
+  return '';
 }
 
 async function syncSaipos() {
@@ -891,7 +904,7 @@ async function syncSaipos() {
   try {
     const now = new Date();
     const windows = [];
-    // Janelas de 7 dias (mais seguro contra rate limit)
+    // Janelas de 7 dias
     for (let i = 0; i < dias; i += 7) {
       const end   = new Date(now); end.setDate(now.getDate() - i);
       const start = new Date(now); start.setDate(now.getDate() - Math.min(i + 7, dias));
@@ -899,27 +912,92 @@ async function syncSaipos() {
     }
 
     let allSales = [];
+    let allItems = [];
+
     for (let w = 0; w < windows.length; w++) {
       const { start, end } = windows[w];
       showToast(`Janela ${w+1}/${windows.length}...`, 'info');
+
+      // 1) Pedidos
       const sales = await fetchEndpointEstoque(gsUrl, token, 'search_sales', start, end);
       allSales.push(...sales);
-      // Pausa 300ms entre janelas para não disparar rate limit
-      if (w < windows.length - 1) await new Promise(r => setTimeout(r, 300));
+
+      // 2) Itens (endpoint correto: sales_items com S)
+      try {
+        const itemsResp = await fetchEndpointEstoque(gsUrl, token, 'sales_items', start, end);
+        allItems.push(...itemsResp);
+      } catch(e) {
+        console.warn(`Janela ${w+1}: itens não carregados — ${e.message}`);
+      }
+
+      // Pausa para não disparar rate limit
+      if (w < windows.length - 1) await new Promise(r => setTimeout(r, 400));
     }
 
     if (!allSales.length) throw new Error('Nenhum pedido retornado');
 
-    // Diagnóstico: verifica se vieram itens enriquecidos pelo Apps Script v5
-    const comItens = allSales.filter(r => r.sale_items?.length > 0);
-    console.log(`Pedidos: ${allSales.length} | Com itens: ${comItens.length}`);
-    if (comItens.length > 0) {
-      console.log('✓ Campos do 1º item:', Object.keys(comItens[0].sale_items[0]));
-    } else {
-      console.warn('⚠ Apps Script v5 não retornou itens — verifique os logs em script.google.com');
+    // ── 3) Estoque atual real (search_ingredient_movement) ──
+    // Pega movimentações dos últimos 30 dias para extrair posição atual
+    try {
+      showToast('Buscando estoque atual...', 'info');
+      const stockEnd   = new Date();
+      const stockStart = new Date(); stockStart.setDate(stockStart.getDate() - 30);
+
+      const movResp = await fetchEndpointEstoque(
+        gsUrl, token, 'search_ingredient_movement',
+        stockStart, stockEnd, 1000, 'date_movement'
+      );
+
+      if (movResp.length > 0) {
+        console.log('✓ Movimentações estoque:', movResp.length, '— 1ª:', movResp[0]);
+
+        // Indexa pelo ingrediente, pegando a movimentação mais recente
+        const stockMap = {};
+        movResp.forEach(mov => {
+          const ing = mov.ingredient;
+          if (!ing) return;
+          const id = ing.id_store_ingredient;
+          const dataMov = new Date(mov.date_movement || mov.created_at);
+          if (!stockMap[id] || dataMov > stockMap[id]._data) {
+            stockMap[id] = {
+              ingrediente:  ing.desc_store_ingredient,
+              grupo:        ing.group?.desc_store_group_ingredient || '',
+              estoque:      parseFloat(ing.current_inventory || 0),
+              unidade:      ing.short_desc_unit_measure || '',
+              custo_unit:   parseFloat(ing.average_cost || 0),
+              estoque_min:  parseFloat(ing.minimium_stock || 0),
+              ultima_mov:   mov.date_movement,
+              _data:        dataMov,
+            };
+          }
+        });
+
+        STATE.estoqueReal = Object.values(stockMap).map(s => {
+          delete s._data; return s;
+        });
+        console.log(`✓ Estoque real: ${STATE.estoqueReal.length} ingredientes únicos`);
+      }
+    } catch(e) {
+      console.warn('Estoque real indisponível:', e.message);
     }
 
-    // Monta histórico: uma entrada por item (sabor) por pedido
+    console.log(`✓ Pedidos: ${allSales.length} | Pacotes de itens: ${allItems.length}`);
+
+    // sales_items retorna agrupado por venda: [{id_sale, items:[{desc_sale_item, choices:[...]}]}]
+    // Indexa por id_sale
+    const itemsBySale = {};
+    allItems.forEach(pack => {
+      itemsBySale[pack.id_sale] = pack.items || [];
+    });
+
+    if (allItems[0]) {
+      console.log('✓ 1º pacote de itens:', allItems[0]);
+      if (allItems[0].items?.[0]) {
+        console.log('✓ 1º item:', allItems[0].items[0]);
+      }
+    }
+
+    // Monta histórico: uma entrada por sabor de cada item de cada pedido
     STATE.historico = [];
     allSales
       .filter(r => r.canceled !== 'Y' && r.canceled !== true)
@@ -929,30 +1007,48 @@ async function syncSaipos() {
         const canal = r.partner_sale?.desc_partner_sale ||
                       r.partner_sale?.partner_name      ||
                       (parseInt(r.id_sale_type) === 1 ? 'Delivery' : 'Balcão');
-        const items = r.sale_items || [];
+
+        const items = itemsBySale[r.id_sale] || [];
 
         if (items.length > 0) {
           items.forEach(item => {
-            const sabor =
-              item.desc_product            ||
-              item.product_description     ||
-              item.description             ||
-              item.name                    || null;
-            if (!sabor) return;
-            STATE.historico.push({
-              data,
-              sabor:   sabor.trim(),
-              tamanho: (item.desc_product_complement || item.complement_description || '').trim(),
-              qtd:     parseFloat(item.quantity || item.qtd || 1),
-              valor:   parseFloat(r.total_amount || 0),
-              tipo:    parseInt(r.id_sale_type || 1),
-              canal,
-            });
+            // Cada item pode ter múltiplas choices (sabores)
+            // Para pizza: desc_sale_item = "Pizza Gigante" + choices = ["FRANGO CATUPIRY", "CALABRESA"]
+            const choices = (item.choices || []).filter(c => c.deleted !== 'Y');
+
+            if (choices.length > 0) {
+              // Pizza com sabores explícitos
+              choices.forEach(c => {
+                STATE.historico.push({
+                  data,
+                  sabor:   (c.desc_sale_item_choice || '').trim(),
+                  tamanho: extrairTamanho(item.desc_sale_item),
+                  qtd:     parseFloat(item.quantity || 1) / choices.length, // divide entre sabores
+                  valor:   parseFloat(item.unit_price || 0) + parseFloat(c.aditional_price || 0),
+                  produto: (item.desc_sale_item || '').split(':')[0].trim(),
+                  tipo:    parseInt(r.id_sale_type || 1),
+                  canal,
+                });
+              });
+            } else {
+              // Item sem choices — usa o nome do item direto (bebidas, sobremesas, etc.)
+              STATE.historico.push({
+                data,
+                sabor:   (item.desc_sale_item || '').split(':')[0].trim() || 'Sem nome',
+                tamanho: extrairTamanho(item.desc_sale_item),
+                qtd:     parseFloat(item.quantity || 1),
+                valor:   parseFloat(item.unit_price || 0),
+                produto: '',
+                tipo:    parseInt(r.id_sale_type || 1),
+                canal,
+              });
+            }
           });
         } else {
+          // Pedido sem itens carregados
           STATE.historico.push({
             data,
-            sabor:   '(sem detalhe)',
+            sabor:   '(itens não carregados)',
             tamanho: '',
             qtd:     1,
             valor:   parseFloat(r.total_amount || 0),

@@ -738,7 +738,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.7</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.8</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -1132,22 +1132,36 @@ function processarHistorico(hist) {
   const total = hist.length;
   const dias = new Set(hist.map(i=>i.data)).size || 1;
   const mediaDia = (total / dias).toFixed(1);
-  const mediaFds = calcularMediaFds(hist);
-  const mediaMeio = calcularMediaMeioSemana(hist);
 
-  // Projeção próximos 7 dias
-  const projecao7 = gerarProjecao7dias(mediaFds, mediaMeio);
+  // Média de pizzas POR DIA DA SEMANA — granularidade real
+  const mediaPorDow = calcularMediaPorDow(hist);
+
+  // Projeção próximos 7 dias usando média do dia da semana específico
+  const projecao7 = gerarProjecao7dias(mediaPorDow);
   STATE.projecao = projecao7;
+  STATE.mediaPorDow = mediaPorDow;
   const totalProj = projecao7.reduce((s,d)=>s+d.projetado,0);
 
-  // Atualizar KPIs
-  document.getElementById('kpi-vendas').textContent = `R$ ${(totalProj * 52).toLocaleString('pt-BR')}`;
-  document.getElementById('kpi-vendas-sub').textContent = `≈ R$52 ticket médio`;
+  // Ticket médio real (R$ total / nº pedidos únicos)
+  const pedidosUnicos = new Set(hist.map(i => i.data + '|' + (i.id_sale || ''))).size || hist.length;
+  const totalReceita = hist.reduce((s,i) => s + (i.valor || 0), 0);
+  const ticketMedio = totalReceita > 0 && pedidosUnicos > 0
+    ? (totalReceita / pedidosUnicos)
+    : 52;
+
+  // KPIs
+  document.getElementById('kpi-vendas').textContent = `R$ ${Math.round(totalProj * ticketMedio).toLocaleString('pt-BR')}`;
+  document.getElementById('kpi-vendas-sub').textContent = `≈ R$${ticketMedio.toFixed(0)} ticket médio`;
   document.getElementById('kpi-pizzas').textContent = totalProj;
   document.getElementById('kpi-pizzas-sub').textContent = `Média ${(totalProj/7).toFixed(0)}/dia`;
-  document.getElementById('kpi-criticos').textContent = '–';
   document.getElementById('kpi-compras').textContent = '2';
-  document.getElementById('badge-tendencia').textContent = mediaFds > mediaMeio*1.5 ? '↑ Fds forte' : '→ Estável';
+
+  // Tendência: compara últimas 2 semanas com 2 anteriores
+  const tendencia = calcularTendencia(hist);
+  const badge = document.getElementById('badge-tendencia');
+  if (tendencia > 5)       { badge.textContent = `↑ +${tendencia.toFixed(0)}%`; badge.className = 'badge badge-green'; }
+  else if (tendencia < -5) { badge.textContent = `↓ ${tendencia.toFixed(0)}%`;  badge.className = 'badge badge-red'; }
+  else                     { badge.textContent = `→ Estável`;                   badge.className = 'badge badge-blue'; }
 
   // Mini chart
   renderMiniChart(projecao7);
@@ -1159,36 +1173,59 @@ function processarHistorico(hist) {
   renderTabelaProjecao(projecao7);
 }
 
-function calcularMediaFds(hist) {
-  const dias = hist.filter(i => { const d = new Date(i.data).getDay(); return d===0||d===5||d===6; });
-  const diasUnicos = new Set(dias.map(i=>i.data)).size || 1;
-  return Math.round(dias.length / diasUnicos);
+// Média de pizzas por dia da semana (0=Dom, 1=Seg, ..., 6=Sáb)
+function calcularMediaPorDow(hist) {
+  const porDow = [[], [], [], [], [], [], []]; // 7 buckets
+  // Agrupa pedidos por data
+  const porData = {};
+  hist.forEach(i => {
+    if (!porData[i.data]) porData[i.data] = 0;
+    porData[i.data]++;
+  });
+  // Soma por dia da semana
+  Object.entries(porData).forEach(([data, qtd]) => {
+    const dow = new Date(data + 'T12:00:00').getDay();
+    porDow[dow].push(qtd);
+  });
+  // Média de cada dia da semana
+  return porDow.map(arr => arr.length ? arr.reduce((s,n)=>s+n,0) / arr.length : 0);
 }
 
-function calcularMediaMeioSemana(hist) {
-  const dias = hist.filter(i => { const d = new Date(i.data).getDay(); return d>=1&&d<=4; });
-  const diasUnicos = new Set(dias.map(i=>i.data)).size || 1;
-  return Math.round(dias.length / diasUnicos);
+function calcularTendencia(hist) {
+  // Pizzas por data
+  const porData = {};
+  hist.forEach(i => {
+    if (!porData[i.data]) porData[i.data] = 0;
+    porData[i.data]++;
+  });
+  const datas = Object.keys(porData).sort();
+  if (datas.length < 28) return 0;
+  const meio = Math.floor(datas.length / 2);
+  const recente = datas.slice(meio).reduce((s,d) => s + porData[d], 0) / (datas.length - meio);
+  const antigo  = datas.slice(0, meio).reduce((s,d) => s + porData[d], 0) / meio;
+  return antigo > 0 ? ((recente - antigo) / antigo) * 100 : 0;
 }
 
-function gerarProjecao7dias(mediaFds, mediaSemana) {
+function gerarProjecao7dias(mediaPorDow) {
   const hoje = new Date();
   const dias = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   const res = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(hoje.getTime() + i * 86400000);
     const dSem = d.getDay();
-    const isWeekend = dSem===0||dSem===5||dSem===6;
-    const base = isWeekend ? mediaFds : mediaSemana;
+    const base = mediaPorDow[dSem] || 0;
     const aj = 1 + STATE.ajuste_geral / 100;
+    const isHoje = i === 0;
+    const isWeekend = dSem === 0 || dSem === 5 || dSem === 6;
     res.push({
       dia: dias[dSem],
       data: d.toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'}),
       projetado: Math.round(base * aj),
-      base,
-      evento: isWeekend ? '–' : '–',
-      confianca: isWeekend ? 'Alta' : 'Média',
+      base: Math.round(base),
+      evento: '–',
+      confianca: base > 0 ? (mediaPorDow[dSem] >= 10 ? 'Alta' : 'Média') : 'Sem dados',
       isWeekend,
+      isHoje,
     });
   }
   return res;
@@ -1198,12 +1235,12 @@ function gerarProjecao7dias(mediaFds, mediaSemana) {
 // RENDERS
 // ══════════════════════════════════════════
 function renderMiniChart(projecao) {
-  const max = Math.max(...projecao.map(d=>d.projetado));
-  const hoje = new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  const max = Math.max(...projecao.map(d=>d.projetado)) || 1;
   const html = projecao.map(d => {
-    const h = Math.round((d.projetado / max) * 100);
-    const cls = d.data === hoje ? 'hoje' : d.isWeekend ? 'weekend' : '';
-    return `<div class="proj-bar-col">
+    const h = Math.max(4, Math.round((d.projetado / max) * 100));
+    const cls = d.isHoje ? 'hoje' : d.isWeekend ? 'weekend' : '';
+    const tip = `${d.dia} ${d.data}: ${d.projetado} pizzas (base hist. ${d.base})`;
+    return `<div class="proj-bar-col" title="${tip}">
       <span class="proj-bar-value">${d.projetado}</span>
       <div class="proj-bar ${cls}" style="height:${h}px"></div>
       <span class="proj-bar-label">${d.dia}</span>

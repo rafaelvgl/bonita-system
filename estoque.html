@@ -718,7 +718,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.10</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.11</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -846,14 +846,50 @@ async function fetchEndpointEstoque(gsUrl, token, endpoint, start, end, limit=10
   const fmt = d => d.toISOString().slice(0,19);
   const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
   const params = new URLSearchParams({ token: bearerToken, endpoint, col, start:fmt(start), end:fmt(end), limit });
-  const resp = await fetch(`${gsUrl}?${params}`);
-  if (!resp.ok) throw new Error(`${endpoint} HTTP ${resp.status}`);
-  const json = await resp.json();
-  if (json === null || json === undefined) throw new Error(`${endpoint}: resposta vazia`);
-  if (typeof json === 'object' && !Array.isArray(json) && json.error) {
-    throw new Error(`Saipos ${endpoint}: ${json.error}`);
+
+  const maxRetries = 3;
+  let lastError;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const resp = await fetch(`${gsUrl}?${params}`);
+
+      // 504/502 = timeout do Saipos — vale retry
+      if (resp.status === 504 || resp.status === 502) {
+        const body = await resp.text().catch(() => '');
+        const err = new Error(`${endpoint} HTTP ${resp.status}: ${body.slice(0, 150)}`);
+        err._retriable = true;
+        throw err;
+      }
+
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => '');
+        throw new Error(`${endpoint} HTTP ${resp.status}: ${body.slice(0, 200)}`);
+      }
+
+      const json = await resp.json();
+      if (json === null || json === undefined) throw new Error(`${endpoint}: resposta vazia`);
+      if (typeof json === 'object' && !Array.isArray(json) && json.error) {
+        const errStr = String(json.error);
+        const err = new Error(`Saipos ${endpoint}: ${errStr}`);
+        err._retriable = errStr.includes('PGRST003') || errStr.includes('Timed out');
+        throw err;
+      }
+      return Array.isArray(json) ? json : [];
+
+    } catch(e) {
+      lastError = e;
+      const retriable = e._retriable ||
+        (e.message || '').includes('PGRST003') ||
+        (e.message || '').includes('Timed out') ||
+        (e.message || '').includes('504') ||
+        (e.message || '').includes('502');
+      if (!retriable || attempt === maxRetries - 1) throw e;
+      const wait = 1500 * Math.pow(2, attempt); // 1.5s, 3s, 6s
+      console.warn(`⚠ ${endpoint} tentativa ${attempt+1} — aguardando ${wait}ms`);
+      await new Promise(r => setTimeout(r, wait));
+    }
   }
-  return Array.isArray(json) ? json : [];
+  throw lastError;
 }
 
 // Extrai tamanho da pizza do texto do produto
@@ -919,8 +955,8 @@ async function syncSaipos() {
         console.warn(`Janela ${w+1}: itens não carregados — ${e.message}`);
       }
 
-      // Pausa para não disparar rate limit
-      if (w < windows.length - 1) await new Promise(r => setTimeout(r, 400));
+      // Pausa entre janelas — evita saturar a API Saipos
+      if (w < windows.length - 1) await new Promise(r => setTimeout(r, 600));
     }
 
     if (!allSales.length) throw new Error('Nenhum pedido retornado');

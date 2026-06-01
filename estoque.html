@@ -836,7 +836,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.7</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.8</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -2060,7 +2060,7 @@ async function askClaude(message, systemPrompt, maxTokens=1000) {
     endpoint:   'claude',
     message:    message,
     system:     systemPrompt || 'Você é o assistente da Bonità Pizzaria em Penápolis, SP. Responda sempre em português.',
-    model:      'claude-sonnet-4-20250514',
+    model:      'claude-sonnet-4-6',
     max_tokens: maxTokens,
   });
 

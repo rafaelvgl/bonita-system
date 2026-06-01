@@ -171,6 +171,81 @@
 @media(max-width:900px){ .grid-4{ grid-template-columns: repeat(2,1fr); } }
 @media(max-width:600px){ .grid-4,.grid-3{ grid-template-columns: 1fr; } }
 
+/* ── Pedido drill-down ── */
+.ped-row {
+  border-bottom: 1px solid rgba(255,240,214,.06);
+  transition: background .15s;
+}
+.ped-row:last-child { border-bottom: none; }
+.ped-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; cursor: pointer; user-select: none;
+}
+.ped-header:hover { background: var(--cream-faint); }
+.ped-chevron {
+  font-size: .65rem; color: var(--text-faint);
+  transition: transform .2s; flex-shrink: 0;
+}
+.ped-row.open .ped-chevron { transform: rotate(90deg); }
+.ped-num   { font-weight: 600; font-size: .82rem; color: var(--cream); min-width: 52px; }
+.ped-data  { font-size: .75rem; color: var(--text-faint); min-width: 110px; }
+.ped-canal { min-width: 70px; }
+.ped-valor { margin-left: auto; font-weight: 500; font-size: .82rem; color: #4ade80; }
+.ped-status-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.ped-body { display: none; padding: 0 16px 12px 16px; }
+.ped-row.open .ped-body { display: block; }
+
+/* Item dentro do pedido */
+.ped-item {
+  background: rgba(255,240,214,.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.ped-item-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; cursor: pointer;
+  background: rgba(255,240,214,.03);
+  border-bottom: 1px solid transparent;
+}
+.ped-item.open .ped-item-header { border-bottom-color: var(--border); }
+.ped-item-header:hover { background: rgba(255,240,214,.07); }
+.ped-item-chevron { font-size: .6rem; color: var(--text-faint); transition: transform .15s; }
+.ped-item.open .ped-item-chevron { transform: rotate(90deg); }
+.ped-item-nome { font-size: .82rem; font-weight: 500; color: var(--cream); flex: 1; }
+.ped-item-qtd  { font-size: .75rem; color: var(--text-faint); }
+.ped-item-preco { font-size: .78rem; color: var(--cream-dim); }
+.ped-choices { display: none; padding: 8px 12px; }
+.ped-item.open .ped-choices { display: block; }
+.ped-choice {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 0; border-bottom: 1px solid rgba(255,240,214,.05);
+  font-size: .78rem;
+}
+.ped-choice:last-child { border-bottom: none; }
+.ped-choice-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--red); flex-shrink: 0;
+}
+.ped-choice-nome  { flex: 1; color: var(--cream-dim); }
+.ped-choice-preco { color: var(--text-faint); font-size: .72rem; }
+
+/* Resumo barra */
+.res-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid rgba(255,240,214,.05);
+  font-size: .78rem;
+}
+.res-bar:last-child { border-bottom: none; }
+.res-bar-nome  { flex: 1; color: var(--cream-dim); }
+.res-bar-count { min-width: 28px; text-align: right; font-weight: 500; color: var(--cream); }
+.res-bar-pct   { min-width: 42px; text-align: right; color: var(--text-faint); }
+.res-bar-fill-wrap { width: 80px; background: rgba(255,240,214,.08); border-radius: 2px; height: 5px; }
+.res-bar-fill  { height: 100%; border-radius: 2px; background: var(--red); }
+
 /* ── Day flags ── */
 .day-flags { display: flex; gap: 6px; flex-wrap: wrap; }
 .day-flag {
@@ -257,6 +332,7 @@
     <button class="inner-tab" onclick="showInnerPage('coccao',this)" data-page="coccao">🍳 Cocção</button>
     <button class="inner-tab" onclick="showInnerPage('compras',this)" data-page="compras">🛒 Compras</button>
     <button class="inner-tab" onclick="showInnerPage('receitas',this)" data-page="receitas">📋 Receitas</button>
+    <button class="inner-tab" onclick="showInnerPage('pedidos',this)" data-page="pedidos">🔍 Pedidos</button>
     <button class="inner-tab" onclick="showInnerPage('config-pg',this)" data-page="config-pg">⚙ Config</button>
   </div>
 
@@ -543,6 +619,48 @@
     </div>
   </div>
 
+  <!-- ══ PEDIDOS (CONFERÊNCIA) ══ -->
+  <div class="inner-page" id="page-pedidos">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Conferência de Pedidos</div>
+        <div class="section-desc">Pedidos reais da API · clique para ver grupos, sabores e opções</div>
+      </div>
+      <div class="flex-gap">
+        <select id="ped-filtro-tipo" class="input-field" style="height:34px;font-size:.78rem" onchange="renderPedidos()">
+          <option value="todos">Todos os tipos</option>
+          <option value="Delivery">Delivery</option>
+          <option value="Balcão">Balcão</option>
+        </select>
+        <input id="ped-busca" class="input-field" style="height:34px;font-size:.78rem;width:180px" placeholder="Buscar pedido..." oninput="renderPedidos()">
+        <span class="badge badge-blue" id="badge-pedidos-count">– pedidos</span>
+      </div>
+    </div>
+
+    <!-- Resumo por grupo/produto -->
+    <div class="grid-2" style="margin-bottom:20px">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">Por grupo/tamanho</div>
+        <div id="ped-resumo-grupos"></div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">Top sabores (choices)</div>
+        <div id="ped-resumo-sabores"></div>
+      </div>
+    </div>
+
+    <!-- Lista de pedidos com drill-down -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
+        <span class="bold small">Pedidos individuais</span>
+        <span class="faint small" id="ped-total-label">Sincronize para ver</span>
+        <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="expandirTodos()">Expandir todos</button>
+        <button class="btn btn-outline btn-sm" onclick="recolherTodos()">Recolher todos</button>
+      </div>
+      <div id="pedidos-lista" style="max-height:600px;overflow-y:auto"></div>
+    </div>
+  </div>
+
   <!-- ══ CONFIG ══ -->
   <div class="inner-page" id="page-config-pg">
     <div class="section-header">
@@ -718,12 +836,156 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-26.11</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.1</span></div>
 </footer>
 
 <div id="toast-container"></div>
 
 <script>
+// ══════════════════════════════════════════
+// ABA PEDIDOS — CONFERÊNCIA COM DRILL-DOWN
+// ══════════════════════════════════════════
+
+// Referência: STATE.allSalesFull (pedidos completos com items[])
+// populado em syncSaipos logo após o join
+
+function renderPedidos() {
+  const raw = STATE.allSalesFull || [];
+  if (!raw.length) {
+    document.getElementById('pedidos-lista').innerHTML =
+      '<div style="padding:32px;text-align:center;color:var(--text-faint)">Sincronize o Saipos para ver os pedidos</div>';
+    return;
+  }
+
+  const filtroTipo = document.getElementById('ped-filtro-tipo')?.value || 'todos';
+  const busca = (document.getElementById('ped-busca')?.value || '').toLowerCase();
+
+  const pedidos = raw.filter(r => {
+    if (r.canceled === 'Y' || r.canceled === true) return false;
+    const canal = r.partner_sale?.desc_partner_sale || (parseInt(r.id_sale_type)===1?'Delivery':'Balcão');
+    if (filtroTipo !== 'todos' && !canal.includes(filtroTipo)) return false;
+    if (busca) {
+      const num = String(r.sale_number || r.id_sale || '');
+      const itens = (r.sale_items||[]).map(i=>i.desc_sale_item||'').join(' ').toLowerCase();
+      const choices = (r.sale_items||[]).flatMap(i=>(i.choices||[]).map(c=>c.desc_sale_item_choice||'')).join(' ').toLowerCase();
+      if (!num.includes(busca) && !itens.includes(busca) && !choices.includes(busca)) return false;
+    }
+    return true;
+  });
+
+  // Badge
+  document.getElementById('badge-pedidos-count').textContent = `${pedidos.length} pedidos`;
+  document.getElementById('ped-total-label').textContent = `${pedidos.length} de ${raw.length} exibidos`;
+
+  // Resumo grupos
+  renderResumoGrupos(pedidos);
+  renderResumoSabores(pedidos);
+
+  // Lista drill-down
+  const html = pedidos.slice(0, 200).map((r, idx) => {
+    const canal = r.partner_sale?.desc_partner_sale || (parseInt(r.id_sale_type)===1?'Delivery':'Balcão');
+    const dt = (r.created_at||'').slice(0,16).replace('T',' ');
+    const valor = parseFloat(r.total_amount||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+    const items = r.sale_items || [];
+    const itemsHtml = items.map((item, ii) => {
+      const choices = (item.choices||[]).filter(c=>c.deleted!=='Y');
+      const choicesHtml = choices.length ? choices.map(c => `
+        <div class="ped-choice">
+          <div class="ped-choice-dot" style="background:${c.aditional_price>0?'#fac800':'var(--red)'}"></div>
+          <div class="ped-choice-nome">${c.desc_sale_item_choice||'–'}</div>
+          <div class="ped-choice-preco">${c.aditional_price>0?`+R$${c.aditional_price.toFixed(2)}`:'incluso'}</div>
+        </div>`).join('') :
+        '<div class="ped-choice"><div class="ped-choice-dot" style="background:var(--text-faint)"></div><div class="ped-choice-nome faint">Sem opções detalhadas</div></div>';
+
+      return `<div class="ped-item" id="ped-item-${idx}-${ii}">
+        <div class="ped-item-header" onclick="togglePedItem('ped-item-${idx}-${ii}')">
+          <span class="ped-item-chevron">▶</span>
+          <span class="ped-item-nome">${item.desc_sale_item||'Item sem nome'}</span>
+          <span class="ped-item-qtd">× ${item.quantity||1}</span>
+          <span class="ped-item-preco">R$ ${parseFloat(item.unit_price||0).toFixed(2)}</span>
+          <span class="badge ${choices.length?'badge-blue':'badge-cream'}" style="font-size:.6rem;margin-left:4px">
+            ${choices.length} opç${choices.length!==1?'ões':'ão'}
+          </span>
+        </div>
+        <div class="ped-choices">${choicesHtml}</div>
+      </div>`;
+    }).join('') || '<div class="small faint" style="padding:8px 0">Sem itens detalhados neste pedido</div>';
+
+    const dotColor = items.length > 0 ? '#4ade80' : '#fac800';
+    return `<div class="ped-row" id="ped-row-${idx}">
+      <div class="ped-header" onclick="togglePedRow('ped-row-${idx}')">
+        <span class="ped-chevron">▶</span>
+        <span class="ped-num">#${r.sale_number||r.id_sale}</span>
+        <span class="ped-data">${dt}</span>
+        <span class="ped-canal">
+          <span class="badge ${canal.includes('iFood')?'badge-red':canal.includes('Delivery')?'badge-blue':'badge-cream'}" style="font-size:.62rem">${canal}</span>
+        </span>
+        <div class="ped-status-dot" style="background:${dotColor}" title="${items.length} itens"></div>
+        <span class="small faint">${items.length} item${items.length!==1?'s':''}</span>
+        <span class="ped-valor">R$ ${valor}</span>
+      </div>
+      <div class="ped-body">${itemsHtml}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('pedidos-lista').innerHTML = html ||
+    '<div style="padding:24px;text-align:center;color:var(--text-faint)">Nenhum pedido encontrado</div>';
+}
+
+function renderResumoGrupos(pedidos) {
+  const grupos = {};
+  pedidos.forEach(r => {
+    (r.sale_items||[]).forEach(item => {
+      const g = item.desc_sale_item || 'Sem grupo';
+      grupos[g] = (grupos[g]||0) + parseFloat(item.quantity||1);
+    });
+  });
+  const arr = Object.entries(grupos).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const max = arr[0]?.[1]||1;
+  document.getElementById('ped-resumo-grupos').innerHTML = arr.map(([n,v]) => `
+    <div class="res-bar">
+      <div class="res-bar-nome">${n}</div>
+      <div class="res-bar-fill-wrap"><div class="res-bar-fill" style="width:${(v/max*100).toFixed(0)}%"></div></div>
+      <div class="res-bar-count">${v}</div>
+      <div class="res-bar-pct">${(v/arr.reduce((s,[,x])=>s+x,0)*100).toFixed(1)}%</div>
+    </div>`).join('') || '<div class="faint small">Sem dados</div>';
+}
+
+function renderResumoSabores(pedidos) {
+  const sabores = {};
+  pedidos.forEach(r => {
+    (r.sale_items||[]).forEach(item => {
+      (item.choices||[]).filter(c=>c.deleted!=='Y').forEach(c => {
+        const s = c.desc_sale_item_choice || 'Sem nome';
+        sabores[s] = (sabores[s]||0) + 0.5; // cada choice = 0.5 de uma pizza (2 sabores por pizza)
+      });
+    });
+  });
+  const arr = Object.entries(sabores).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const total = arr.reduce((s,[,v])=>s+v,0)||1;
+  const max = arr[0]?.[1]||1;
+  document.getElementById('ped-resumo-sabores').innerHTML = arr.map(([n,v]) => `
+    <div class="res-bar">
+      <div class="res-bar-nome">${n}</div>
+      <div class="res-bar-fill-wrap"><div class="res-bar-fill" style="width:${(v/max*100).toFixed(0)}%;background:var(--blue)"></div></div>
+      <div class="res-bar-count">${v % 1 === 0 ? v : v.toFixed(1)}</div>
+      <div class="res-bar-pct">${(v/total*100).toFixed(1)}%</div>
+    </div>`).join('') || '<div class="faint small">Sem dados de sabores — itens sem choices</div>';
+}
+
+function togglePedRow(id) {
+  document.getElementById(id)?.classList.toggle('open');
+}
+function togglePedItem(id) {
+  document.getElementById(id)?.classList.toggle('open');
+}
+function expandirTodos() {
+  document.querySelectorAll('#pedidos-lista .ped-row').forEach(r => r.classList.add('open'));
+}
+function recolherTodos() {
+  document.querySelectorAll('#pedidos-lista .ped-row, #pedidos-lista .ped-item').forEach(r => r.classList.remove('open'));
+}
+
 // ══════════════════════════════════════════
 // NAVEGAÇÃO INTERNA
 // ══════════════════════════════════════════
@@ -738,6 +1000,7 @@ function showInnerPage(page, btn) {
     showCoccaoTab('preparados', firstBtn);
   }
   if (page === 'config-pg') renderPreparadosConfig();
+  if (page === 'pedidos')   renderPedidos();
 }
 
 function showCoccaoTab(tab, btn) {
@@ -803,6 +1066,7 @@ const STATE = {
   receitas: [],
   projecao: [],
   financeiro: [],
+  allSalesFull: [],
   preparados: [{"nome": "Frango Desfiado", "validade_dias": 3, "qtd_base": "120g/porção (rendimento 84%)", "categoria": "proteína"}, {"nome": "Brócolis Preparado", "validade_dias": 2, "qtd_base": "120g/porção", "categoria": "vegetal"}, {"nome": "Costela Desfiada", "validade_dias": 3, "qtd_base": "80g/porção (rendimento 88,4%)", "categoria": "proteína"}, {"nome": "Filet Mignon Iscas", "validade_dias": 2, "qtd_base": "80g/porção", "categoria": "proteína"}, {"nome": "Linguiça Toscana", "validade_dias": 4, "qtd_base": "100g/porção (rendimento 61,6%)", "categoria": "proteína"}, {"nome": "Pernil Preparado", "validade_dias": 3, "qtd_base": "100g/porção (rendimento 88,4%)", "categoria": "proteína"}, {"nome": "Creme de Alho", "validade_dias": 5, "qtd_base": "conforme demanda", "categoria": "molho"}, {"nome": "Creme de Parmesão", "validade_dias": 4, "qtd_base": "conforme demanda", "categoria": "molho"}, {"nome": "Creme de Confeiteiro", "validade_dias": 3, "qtd_base": "conforme demanda", "categoria": "creme doce"}, {"nome": "Molho Chimichurri", "validade_dias": 7, "qtd_base": "conforme demanda", "categoria": "molho"}, {"nome": "Molho de Tomate Artesanal", "validade_dias": 5, "qtd_base": "conforme demanda", "categoria": "molho"}, {"nome": "Geléia de Morango", "validade_dias": 7, "qtd_base": "conforme demanda", "categoria": "doce"}, {"nome": "Massa Longa Fermentação", "validade_dias": 3, "qtd_base": "400g Grande / 200g Broto", "categoria": "massa"}, {"nome": "Isca de Picanha", "validade_dias": 2, "qtd_base": "conforme demanda", "categoria": "proteína"}],
   receitasCarregadas: true,
   ajuste_geral: 0,
@@ -1084,6 +1348,11 @@ async function syncSaipos() {
       });
 
     STATE.synced = true;
+    // Salva pedidos completos para a aba de Conferência de Pedidos
+    STATE.allSalesFull = allSales
+      .filter(r => r.canceled !== 'Y' && r.canceled !== true)
+      .sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''));
+
     document.getElementById('dot-saipos').className = 'sdot ok';
 
     const msg = document.getElementById('saipos-status-msg');

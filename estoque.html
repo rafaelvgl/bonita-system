@@ -836,7 +836,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.2</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.4</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -1348,9 +1348,10 @@ async function syncSaipos() {
       });
 
     STATE.synced = true;
-    // Salva pedidos completos para a aba de Conferência de Pedidos
+    // Injeta os itens em cada pedido e salva para a aba Conferência
     STATE.allSalesFull = allSales
       .filter(r => r.canceled !== 'Y' && r.canceled !== true)
+      .map(r => ({ ...r, sale_items: itemsBySale[r.id_sale] || [] }))
       .sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''));
 
     document.getElementById('dot-saipos').className = 'sdot ok';
@@ -2227,8 +2228,8 @@ document.head.appendChild(style);
       <div><strong>Importe o estoque e as receitas</strong><br>Faça o upload dos arquivos para ativar os cálculos de consumo e lista de compras.</div>
     </div>`;
 
-  // Auto-sync ao carregar
-  setTimeout(() => syncSaipos(), 800);
+  // Auto-sync desativado — clique em "↻ Sincronizar Saipos" para carregar
+  // setTimeout(() => syncSaipos(), 800);
 })();
 
 // ══════════════════════════════════════════
@@ -6291,12 +6292,13 @@ window.addEventListener('DOMContentLoaded', () => {
   const dias = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   const el = document.getElementById('dash-semana-desc');
-  if (el) el.textContent = `${dias[now.getDay()]}, ${now.getDate()} ${meses[now.getMonth()]} ${now.getFullYear()} · Atualize para ver projeções`;
+  if (el) el.textContent = `${dias[now.getDay()]}, ${now.getDate()} ${meses[now.getMonth()]} ${now.getFullYear()} · Clique em "↻ Sincronizar" para carregar`;
   const dateInput = document.getElementById('semana-inicio');
   if (dateInput) dateInput.value = now.toISOString().slice(0,10);
-  // Carrega dados — RECEITAS_BONITA e ESTOQUE_BONITA já declarados acima
-  carregarDadosDemo();
-  carregarEstoqueReal();
+  // Carrega apenas dados locais (sem API)
+  // carregarDadosDemo(); // desativado — use o botão Sincronizar
+  // carregarEstoqueReal(); // desativado — dados do ESTOQUE_BONITA usados diretamente
+  carregarEstoqueReal(); // só renderiza tabela com dados hardcoded, sem API
   renderReceitasReais();
   renderWeekGrid();
 });

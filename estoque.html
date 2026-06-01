@@ -836,7 +836,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.5</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.6</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -1823,21 +1823,29 @@ function renderTabelaEstoque() {
 }
 
 async function analisarEstoque() {
-  if (!STATE.estoque.length) { alert('Importe o estoque primeiro.'); return; }
+  if (!STATE.estoque.length && !STATE.estoqueReal.length) {
+    showToast('Sincronize o Saipos primeiro.', 'error'); return;
+  }
   const msgsEl = document.getElementById('msgs-estoque');
   msgsEl.innerHTML += `<div class="msg msg-user">Analise o estoque atual e alerte sobre itens críticos para os próximos 7 dias</div>`;
   msgsEl.innerHTML += `<div class="msg msg-loading" id="loading-estoque"><div class="dot-typing"><span></span><span></span><span></span></div></div>`;
   msgsEl.scrollTop = msgsEl.scrollHeight;
 
+  const estoqueAtual = STATE.estoqueReal.length ? STATE.estoqueReal : STATE.estoque;
+  const projStr = JSON.stringify(STATE.projecao.map(d => ({ dia: d.dia, qtd: d.projetado })));
+  const prompt = `Analise o estoque da Bonità Pizzaria e alerte sobre itens críticos.
+Estoque atual (${estoqueAtual.length} ingredientes): ${JSON.stringify(estoqueAtual.slice(0, 30))}
+Projeção próximos 7 dias: ${projStr}
+Identifique: itens abaixo do mínimo, o que vai faltar, sugestão de compra urgente.`;
+
   try {
-    const reply = await askClaude(`Analise o estoque: ${JSON.stringify(STATE.estoque)}. 
-          Projeção de pizzas para os próximos 7 dias: ${STATE.projecao.map(d=>d.dia+', AI_CONTEXTS.estoque, 1000);
+    const reply = await askClaude(prompt, AI_CONTEXTS.estoque, 1000);
     document.getElementById('loading-estoque')?.remove();
     msgsEl.innerHTML += `<div class="msg msg-ai">${reply.replace(/\n/g,'<br>')}</div>`;
     msgsEl.scrollTop = msgsEl.scrollHeight;
   } catch(e) {
     document.getElementById('loading-estoque')?.remove();
-    msgsEl.innerHTML += `<div class="msg msg-ai" style="background:var(--red-pale);color:var(--red)">Erro: ${e.message}</div>`;
+    msgsEl.innerHTML += `<div class="msg msg-ai" style="color:var(--red)">Erro: ${e.message}</div>`;
   }
 }
 

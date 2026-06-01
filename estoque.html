@@ -836,7 +836,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.4</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.5</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -2176,26 +2176,7 @@ function handleDrop(event, tipo) {
 // ══════════════════════════════════════════
 // TOAST
 // ══════════════════════════════════════════
-function showToast(msg, type='info') {
-  const colors = { success:'var(--green)', error:'var(--red)', warning:'var(--amber)', info:'#1A5C70' };
-  const bgColors = { success:'var(--green-pale)', error:'var(--red-pale)', warning:'var(--amber-pale)', info:'#E8F4F8' };
-  const t = document.createElement('div');
-  t.textContent = msg;
-  t.style.cssText = `
-    position:fixed; bottom:24px; right:24px; z-index:9999;
-    background:${bgColors[type]}; color:${colors[type]};
-    border:1px solid ${colors[type]}40;
-    padding:10px 18px; border-radius:8px; font-size:13px; font-weight:500;
-    font-family:'DM Sans',sans-serif; box-shadow:0 4px 16px rgba(0,0,0,0.12);
-    animation: fadeInUp 0.3s ease;
-  `;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3000);
-}
-
-const style = document.createElement('style');
-style.textContent = `@keyframes fadeInUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }`;
-document.head.appendChild(style);
+// (showToast já definida acima — duplicata removida)
 
 // ══════════════════════════════════════════
 // INIT

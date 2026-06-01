@@ -836,7 +836,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.8</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.9</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -1680,16 +1680,49 @@ function resetarAjustes() {
 // ══════════════════════════════════════════
 // AI CALLS (Anthropic API)
 // ══════════════════════════════════════════
-const AI_CONTEXTS = {
-  projecao: `Você é o assistente de projeção de vendas da Bonità Pizzaria, uma pizzaria delivery-only em Penápolis SP. 
-    Analise padrões de venda, feriados, 5° dia útil (dia de pagamento de assalariados), efeitos de chuva, e sazonalidade.
-    Histórico disponível: ${JSON.stringify(STATE.historico?.slice(0,50) || [])}.
-    Seja objetivo, use números reais do histórico quando disponível.`,
-  estoque: `Você é o assistente de estoque da Bonità Pizzaria delivery-only em Penápolis SP.
-    Analise o estoque atual vs necessidade projetada. Priorize alertas de ruptura.
-    Estoque atual: ${JSON.stringify(STATE.estoque?.slice(0,30) || [])}.
-    Projeção próximos 7 dias: ${JSON.stringify(STATE.projecao || [])}.`,
-};
+// AI_CONTEXTS — funções dinâmicas que capturam STATE no momento da chamada
+function getAIContext(ctx) {
+  const hist = STATE.historico || [];
+  const proj = STATE.projecao  || [];
+  const estq = STATE.estoqueReal?.length ? STATE.estoqueReal : STATE.estoque || [];
+
+  // Resumo do histórico por dia da semana (evita enviar MB de dados)
+  const porDia = {};
+  hist.forEach(i => {
+    if (!porDia[i.data]) porDia[i.data] = { qtd: 0, valor: 0 };
+    porDia[i.data].qtd   += parseFloat(i.qtd || 1);
+    porDia[i.data].valor += parseFloat(i.valor || 0);
+  });
+  const diasList = Object.entries(porDia)
+    .sort(([a],[b]) => a.localeCompare(b))
+    .map(([data, v]) => `${data}: ${Math.round(v.qtd)} pizzas, R$${v.valor.toFixed(0)}`);
+
+  // Top sabores
+  const sabores = {};
+  hist.forEach(i => { if (i.sabor && i.sabor !== '(itens não carregados)') sabores[i.sabor] = (sabores[i.sabor]||0) + parseFloat(i.qtd||1); });
+  const topSabores = Object.entries(sabores).sort((a,b)=>b[1]-a[1]).slice(0,15)
+    .map(([s,q]) => `${s}: ${q.toFixed(1)}`).join(', ');
+
+  const periodoMsg = diasList.length
+    ? `Período: ${diasList[0]?.slice(0,10)} a ${diasList[diasList.length-1]?.slice(0,10)} (${diasList.length} dias, ${hist.length} registros)`
+    : 'Histórico: não sincronizado ainda';
+
+  const base = `Você é o assistente operacional da Bonità Pizzaria, delivery-only em Penápolis SP.
+${periodoMsg}
+Vendas por dia (resumo): ${diasList.slice(-60).join(' | ')}
+Top sabores: ${topSabores || 'indisponível'}
+Projeção próximos 7 dias: ${proj.map(d=>`${d.dia} ${d.data}: ${d.projetado} pizzas`).join(', ')}
+Responda sempre em português, com dados reais quando disponíveis. Seja objetivo e prático.`;
+
+  if (ctx === 'projecao') return base + `
+Foco: análise de vendas, tendências, sazonalidade, efeito 5° dia útil, feriados.`;
+
+  if (ctx === 'estoque') return base + `
+Estoque atual (${estq.length} itens): ${JSON.stringify(estq.slice(0,25))}
+Foco: alertas de ruptura, sugestões de compra, cálculo de consumo projetado.`;
+
+  return base;
+}
 
 const MSG_HISTORY = { projecao: [], estoque: [] };
 
@@ -1707,9 +1740,11 @@ async function sendMsg(ctx) {
   MSG_HISTORY[ctx].push({ role: 'user', content: text });
 
   try {
+    // Contexto gerado dinamicamente — captura STATE atual
+    const systemPrompt = getAIContext(ctx);
     const reply = await askClaude(
       MSG_HISTORY[ctx].map(m => m.role + ': ' + m.content).join('\n'),
-      AI_CONTEXTS[ctx] || 'Você é um assistente operacional de pizzaria.'
+      systemPrompt
     );
     MSG_HISTORY[ctx].push({ role: 'assistant', content: reply });
     document.getElementById(`loading-${ctx}`)?.remove();
@@ -1717,7 +1752,7 @@ async function sendMsg(ctx) {
     msgsEl.scrollTop = msgsEl.scrollHeight;
   } catch(e) {
     document.getElementById(`loading-${ctx}`)?.remove();
-    msgsEl.innerHTML += `<div class="msg msg-ai" style="background:var(--red-pale);color:var(--red)">Erro ao contatar IA: ${e.message}</div>`;
+    msgsEl.innerHTML += `<div class="msg msg-ai" style="color:var(--red)">Erro ao contatar IA: ${e.message}</div>`;
     msgsEl.scrollTop = msgsEl.scrollHeight;
   }
 }

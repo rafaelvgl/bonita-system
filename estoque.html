@@ -836,7 +836,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.1</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.2</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -1707,18 +1707,10 @@ async function sendMsg(ctx) {
   MSG_HISTORY[ctx].push({ role: 'user', content: text });
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: AI_CONTEXTS[ctx] || 'Você é um assistente operacional de pizzaria.',
-        messages: MSG_HISTORY[ctx],
-      })
-    });
-    const data = await resp.json();
-    const reply = data.content?.[0]?.text || 'Erro na resposta da IA.';
+    const reply = await askClaude(
+      MSG_HISTORY[ctx].map(m => m.role + ': ' + m.content).join('\n'),
+      AI_CONTEXTS[ctx] || 'Você é um assistente operacional de pizzaria.'
+    );
     MSG_HISTORY[ctx].push({ role: 'assistant', content: reply });
     document.getElementById(`loading-${ctx}`)?.remove();
     msgsEl.innerHTML += `<div class="msg msg-ai">${reply.replace(/\n/g,'<br>')}</div>`;
@@ -1760,18 +1752,7 @@ async function gerarProjecao() {
   msgsEl.scrollTop = msgsEl.scrollHeight;
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: AI_CONTEXTS.projecao,
-        messages: MSG_HISTORY.projecao,
-      })
-    });
-    const data = await resp.json();
-    const reply = data.content?.[0]?.text || 'Erro';
+    const reply = await askClaude(prompt, AI_CONTEXTS.projecao, 1000);
     MSG_HISTORY.projecao.push({ role: 'assistant', content: reply });
     document.getElementById('loading-projecao')?.remove();
     msgsEl.innerHTML += `<div class="msg msg-ai">${reply.replace(/\n/g,'<br>')}</div>`;
@@ -1801,25 +1782,7 @@ async function processarEstoque(input) {
     const mediaType = file.type || 'application/pdf';
 
     try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'document', source: { type: 'base64', media_type: mediaType, data: base64 } },
-              { type: 'text', text: `Extraia o inventário de matéria-prima deste arquivo. 
-                Retorne SOMENTE um JSON válido (sem markdown, sem texto extra) com este formato:
-                {"itens": [{"ingrediente": "nome", "quantidade": 0.0, "unidade": "kg/g/L/un", "categoria": "queijo/vegetal/proteína/molho/embalagem/outro"}]}` }
-            ]
-          }]
-        })
-      });
-      const data = await resp.json();
-      const text = data.content?.[0]?.text || '{}';
+      const text = await askClaude(prompt, 'Você é o assistente da Bonità Pizzaria.', 1000);
       const clean = text.replace(/```json|```/g,'').trim();
       const parsed = JSON.parse(clean);
       STATE.estoque = parsed.itens || [];
@@ -1866,20 +1829,8 @@ async function analisarEstoque() {
   msgsEl.scrollTop = msgsEl.scrollHeight;
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: AI_CONTEXTS.estoque,
-        messages: [{ role: 'user', content: `Analise o estoque: ${JSON.stringify(STATE.estoque)}. 
-          Projeção de pizzas para os próximos 7 dias: ${STATE.projecao.map(d=>d.dia+':'+d.projetado).join(', ')}.
-          Quais itens podem faltar? Sugira quantidades de compra.` }]
-      })
-    });
-    const data = await resp.json();
-    const reply = data.content?.[0]?.text || 'Erro';
+    const reply = await askClaude(`Analise o estoque: ${JSON.stringify(STATE.estoque)}. 
+          Projeção de pizzas para os próximos 7 dias: ${STATE.projecao.map(d=>d.dia+', AI_CONTEXTS.estoque, 1000);
     document.getElementById('loading-estoque')?.remove();
     msgsEl.innerHTML += `<div class="msg msg-ai">${reply.replace(/\n/g,'<br>')}</div>`;
     msgsEl.scrollTop = msgsEl.scrollHeight;
@@ -1902,25 +1853,7 @@ async function processarReceitas(input) {
     const mediaType = file.type || 'application/pdf';
 
     try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'document', source: { type: 'base64', media_type: mediaType, data: base64 } },
-              { type: 'text', text: `Extraia as receitas das pizzas deste arquivo.
-                Retorne SOMENTE JSON válido:
-                {"receitas": [{"sabor": "nome", "tamanho": "G", "ingredientes": [{"nome": "item", "quantidade": 0.0, "unidade": "g"}]}]}` }
-            ]
-          }]
-        })
-      });
-      const data = await resp.json();
-      const text = data.content?.[0]?.text || '{}';
+      const text = await askClaude(prompt, 'Você é o assistente da Bonità Pizzaria.', 1000);
       const clean = text.replace(/```json|```/g,'').trim();
       const parsed = JSON.parse(clean);
       STATE.receitas = parsed.receitas || [];
@@ -1966,17 +1899,7 @@ async function gerarListaCompras() {
         "cronograma": "texto com sugestão de dias para ir ao Bispo/Mega G e ao hortifruti"
       }`;
 
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const data = await resp.json();
-    const text = data.content?.[0]?.text || '{}';
+    const text = await askClaude(prompt, 'Você é o assistente da Bonità Pizzaria.', 1000);
     const clean = text.replace(/```json|```/g,'').trim();
     const lista = JSON.parse(clean);
 
@@ -2035,17 +1958,7 @@ async function gerarMapaCoccao() {
       Retorne JSON:
       {"obs": "texto com observações gerais e dicas de conservação para cada preparado"}`;
 
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const data = await resp.json();
-    const text = data.content?.[0]?.text || '{}';
+    const text = await askClaude(prompt, 'Você é o assistente da Bonità Pizzaria.', 1000);
     const clean = text.replace(/```json|```/g,'').trim();
     const result = JSON.parse(clean);
 
@@ -2077,17 +1990,7 @@ async function gerarRelatorioSemanal() {
   document.querySelector('[data-page="projecao"]').click();
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: msg }]
-      })
-    });
-    const data = await resp.json();
-    const reply = data.content?.[0]?.text || 'Erro';
+    const reply = await askClaude(msg, 'Você é o assistente da Bonità Pizzaria.', 1000);
     document.getElementById('loading-relatorio')?.remove();
     const el = document.getElementById('msgs-projecao');
     el.innerHTML += `<div class="msg msg-ai">${reply.replace(/\n/g,'<br>')}</div>`;
@@ -2135,6 +2038,32 @@ function salvarFornecedores() {
   showToast('Fornecedores salvos!', 'success');
 }
 function salvarParametros() { showToast('Parâmetros salvos!', 'success'); }
+// ══════════════════════════════════════════
+// CLAUDE VIA APPS SCRIPT PROXY
+// Toda chamada de IA passa por aqui —
+// a API key fica segura no Apps Script
+// ══════════════════════════════════════════
+async function askClaude(message, systemPrompt, maxTokens=1000) {
+  const BC    = window.BONITA_CONFIG?.saipos;
+  const gsUrl = BC?.gsUrl || document.getElementById('cfg-saipos-url')?.value?.trim() || '';
+  if (!gsUrl) throw new Error('URL do proxy não configurada em ⚙ Config');
+
+  const params = new URLSearchParams({
+    endpoint:   'claude',
+    message:    message,
+    system:     systemPrompt || 'Você é o assistente da Bonità Pizzaria em Penápolis, SP. Responda sempre em português.',
+    model:      'claude-sonnet-4-20250514',
+    max_tokens: maxTokens,
+  });
+
+  const resp = await fetch(`${gsUrl}?${params}`);
+  if (!resp.ok) throw new Error(`Proxy HTTP ${resp.status}`);
+  const json = await resp.json();
+  if (json.error) throw new Error(json.error);
+  if (!json.text) throw new Error('Resposta vazia do Claude');
+  return json.text;
+}
+
 function toggleToken() {
   const el = document.getElementById('cfg-saipos-token');
   el.type = el.type === 'password' ? 'text' : 'password';

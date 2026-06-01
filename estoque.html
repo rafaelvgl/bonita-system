@@ -836,7 +836,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.6</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.7</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -1471,28 +1471,27 @@ function processarHistorico(hist) {
 
 // Média de pizzas por dia da semana (0=Dom, 1=Seg, ..., 6=Sáb)
 function calcularMediaPorDow(hist) {
-  const porDow = [[], [], [], [], [], [], []]; // 7 buckets
-  // Agrupa pedidos por data
+  const porDow = [[], [], [], [], [], [], []];
+  // Soma qtd real por data (qtd já dividido entre choices — soma = nº real de pizzas)
   const porData = {};
   hist.forEach(i => {
     if (!porData[i.data]) porData[i.data] = 0;
-    porData[i.data]++;
+    porData[i.data] += parseFloat(i.qtd || 1);
   });
-  // Soma por dia da semana
+  // Distribui por dia da semana
   Object.entries(porData).forEach(([data, qtd]) => {
     const dow = new Date(data + 'T12:00:00').getDay();
     porDow[dow].push(qtd);
   });
-  // Média de cada dia da semana
+  // Média por dia da semana
   return porDow.map(arr => arr.length ? arr.reduce((s,n)=>s+n,0) / arr.length : 0);
 }
 
 function calcularTendencia(hist) {
-  // Pizzas por data
   const porData = {};
   hist.forEach(i => {
     if (!porData[i.data]) porData[i.data] = 0;
-    porData[i.data]++;
+    porData[i.data] += parseFloat(i.qtd || 1);
   });
   const datas = Object.keys(porData).sort();
   if (datas.length < 28) return 0;

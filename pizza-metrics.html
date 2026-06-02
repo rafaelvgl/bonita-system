@@ -817,18 +817,34 @@ document.getElementById('ptabs').addEventListener('click', e => {
 function startTV(){
   stopTV();
   document.body.classList.add('tv-mode');
-  const headerH=document.querySelector('.pm-header')?.offsetHeight||50;
-  const sitenavH=document.querySelector('.pm-sitenav')?.offsetHeight||40;
-  const modtabsH=document.querySelector('.pm-modtabs')?.offsetHeight||42;
-  const tv=document.querySelector('.pm-tv');
-  if(tv) tv.style.height=`calc(100vh - ${headerH+sitenavH+modtabsH}px)`;
-  S.tvTimer=setInterval(()=>{ if(S.live) conectar(); },120000);
+  // Esconde as barras de navegação superiores
+  const sitenav = document.querySelector('.pm-sitenav');
+  const modnav  = document.querySelector('.pm-modnav');
+  const ptabs   = document.getElementById('ptabs');
+  const header  = document.querySelector('.pm-header');
+  if(sitenav) sitenav.style.display = 'none';
+  if(modnav)  modnav.style.display  = 'none';
+  if(ptabs)   ptabs.style.display   = 'none';
+  if(header)  header.style.display  = 'none';
+  // Remove height constraint — deixa rolar se necessário
+  const tv = document.querySelector('.pm-tv');
+  if(tv) tv.style.height = 'auto';
+  S.tvTimer = setInterval(()=>{ if(S.live) conectar(); }, 120000);
 }
 function stopTV(){
   if(S.tvTimer){ clearInterval(S.tvTimer); S.tvTimer=null; }
   document.body.classList.remove('tv-mode');
-  const tv=document.querySelector('.pm-tv');
-  if(tv) tv.style.height='';
+  // Restaura a navegação
+  const sitenav = document.querySelector('.pm-sitenav');
+  const modnav  = document.querySelector('.pm-modnav');
+  const ptabs   = document.getElementById('ptabs');
+  const header  = document.querySelector('.pm-header');
+  if(sitenav) sitenav.style.display = '';
+  if(modnav)  modnav.style.display  = '';
+  if(ptabs)   ptabs.style.display   = '';
+  if(header)  header.style.display  = '';
+  const tv = document.querySelector('.pm-tv');
+  if(tv) tv.style.height = '';
 }
 
 // Stats
@@ -1373,6 +1389,9 @@ function renderTV(){
         <div style="font-size:9px;color:var(--pm-muted)">${S.live?'🟢 ao vivo · atualiza a cada 2 min':'⚪ modo demonstração'}</div>
       </div>
       <div style="text-align:right">
+        <div style="display:flex;align-items:center;gap:10px;justify-content:flex-end">
+          <button onclick="stopTV();document.querySelector('[data-sec=\\'s-delivery\\']').click()" style="background:rgba(255,240,214,.1);border:1px solid rgba(255,240,214,.2);color:var(--pm-muted);font-size:10px;padding:3px 10px;border-radius:12px;cursor:pointer;font-family:var(--pm-mono)">✕ sair</button>
+        </div>
         <div id="tv-clock" style="font-family:'Playfair Display',serif;font-size:1.9rem;font-weight:700;color:#FFF0D6;line-height:1">${now.toLocaleTimeString('pt-BR')}</div>
         <div id="tv-date" style="font-size:10px;color:var(--pm-muted);margin-top:2px">${now.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</div>
       </div>

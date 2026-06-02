@@ -270,13 +270,6 @@ body {
 
 /* ── MAIN ── */
 main { padding: 1rem 1.4rem; }
-/* TV mode — remove main padding e overflow */
-body.tv-mode main { padding: 0; overflow: hidden; }
-body.tv-mode { overflow: hidden; height: 100vh; }
-/* Calcula altura da TV descontando header(~48px) + sitenav(~40px) + modtabs(~40px) */
-.pm-tv {
-  height: calc(100vh - 128px);
-}
 section { display: none; }
 section.active { display: block; }
 
@@ -467,82 +460,47 @@ tr:hover td { background: var(--pm-surface2); }
 .pm-notice strong { color: #FFF0D6; }
 
 /* ── TV MODE ── */
-.pm-tv {
-  background: #013524;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
+.pm-tv { background: #013524; min-height: calc(100vh - 160px); }
 .pm-tv-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: .5rem 1.4rem;
-  background: rgba(1,42,29,.95);
-  border-bottom: 1px solid rgba(255,240,214,.1);
-  flex-shrink: 0;
+  padding: .6rem 1.4rem;
+  border-bottom: 1px solid var(--pm-border);
+  margin-bottom: 1rem;
 }
-.pm-tv-clock { font-family: 'Playfair Display', serif; font-size: 1.8rem; color: #FFF0D6; font-weight: 700; }
-.pm-tv-date  { font-size: 10px; color: var(--pm-muted); margin-top: 2px; text-align: right; }
-.pm-tv-kpis  {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 7px;
-  padding: .5rem 1.4rem;
-  flex-shrink: 0;
-}
+.pm-tv-clock { font-family: 'Playfair Display', serif; font-size: 2rem; color: #FFF0D6; font-weight: 700; }
+.pm-tv-date  { font-size: 11px; color: var(--pm-muted); margin-top: 2px; text-align: right; }
+.pm-tv-kpis  { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1rem; }
 .pm-tv-kpi {
   background: var(--pm-surface);
   border: 1px solid var(--pm-border);
   border-top: 3px solid transparent;
   border-radius: 8px;
-  padding: .6rem .9rem;
+  padding: 1.2rem 1rem;
+  text-align: center;
   position: relative;
 }
 .pm-tv-kpi.r{border-top-color:var(--pm-red)}.pm-tv-kpi.o{border-top-color:var(--pm-orange)}.pm-tv-kpi.g{border-top-color:var(--pm-gold)}.pm-tv-kpi.gn{border-top-color:var(--pm-ok)}.pm-tv-kpi.p{border-top-color:var(--pm-purple)}
-.pm-tv-kpi-lbl { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--pm-muted); margin-bottom: .25rem; }
-.pm-tv-kpi-val { font-family: 'Playfair Display', serif; font-size: 2.4rem; font-weight: 700; line-height: 1; }
-.pm-tv-kpi-unit{ font-size: 9px; color: var(--pm-muted); margin-top: .15rem; }
-/* main 3-column body */
-.pm-tv-main {
-  display: grid;
-  grid-template-columns: 200px 1fr 1fr;
-  gap: 7px;
-  padding: 0 1.4rem .5rem;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-.pm-tv-left, .pm-tv-center, .pm-tv-right {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  min-height: 0;
-  overflow: hidden;
-}
-.pm-tv-body { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.pm-tv-card { background: var(--pm-surface); border: 1px solid var(--pm-border); border-radius: 8px; padding: .7rem .9rem; overflow: hidden; }
-.pm-tv-card.flex1 { flex: 1; min-height: 0; overflow-y: auto; }
-/* TV fullscreen — esconde scroll do body */
-body.tv-mode { overflow: hidden; }
+.pm-tv-kpi-lbl { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--pm-muted); margin-bottom: .4rem; }
+.pm-tv-kpi-val { font-family: 'Playfair Display', serif; font-size: 3rem; font-weight: 700; line-height: 1; }
+.pm-tv-kpi-unit{ font-size: 10px; color: var(--pm-muted); margin-top: .2rem; }
+.pm-tv-body { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1rem; }
+.pm-tv-card { background: var(--pm-surface); border: 1px solid var(--pm-border); border-radius: 8px; padding: 1rem; }
+.pm-tv-card-title { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--pm-muted); margin-bottom: .8rem; }
+.pm-tv-sla { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 1rem; }
+.pm-tv-sla-card { background: var(--pm-surface); border: 1px solid var(--pm-border); border-radius: 8px; padding: .8rem 1rem; text-align: center; }
+.pm-tv-sla-pct { font-family: 'Playfair Display', serif; font-size: 2.5rem; font-weight: 700; line-height: 1; }
+.pm-tv-sla-lbl { font-size: 11px; color: var(--pm-muted); margin-top: .3rem; }
+.pm-tv-moto-row { display: flex; align-items: center; justify-content: space-between; padding: .5rem .6rem; background: var(--pm-surface2); border-radius: 6px; margin-bottom: 6px; }
+.pm-tv-order-row { display: flex; align-items: center; gap: 10px; padding: .4rem .7rem; background: var(--pm-surface); border-radius: 6px; margin-bottom: 5px; font-family: var(--pm-mono); font-size: 11px; }
+
+/* TV mode overrides */
+body.tv-mode { overflow: hidden; height: 100vh; }
+body.tv-mode main { padding: 0 !important; overflow: hidden; }
 #s-tv { padding: 0 !important; margin: 0 !important; }
-.pm-tv-card-title { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--pm-muted); margin-bottom: .5rem; }
-.pm-tv-sla { display: flex; flex-direction: column; gap: 5px; }
-.pm-tv-sla-card {
-  background: var(--pm-surface);
-  border: 1px solid var(--pm-border);
-  border-radius: 7px;
-  padding: .4rem .8rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.pm-tv-sla-pct { font-family: 'Playfair Display', serif; font-size: 1.6rem; font-weight: 700; line-height: 1; }
-.pm-tv-sla-lbl { font-size: 10px; color: var(--pm-muted); }
-.pm-tv-moto-row { display: flex; align-items: center; justify-content: space-between; padding: .4rem .5rem; background: var(--pm-surface2); border-radius: 6px; margin-bottom: 5px; }
-.pm-tv-order-row { display: flex; align-items: center; gap: 8px; padding: .3rem .5rem; background: var(--pm-surface); border-radius: 5px; margin-bottom: 4px; font-family: var(--pm-mono); font-size: 11px; }
-.pm-tv-order-seg { height: 14px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: rgba(255,240,214,.8); min-width: 16px; padding: 0 3px; overflow: hidden; white-space: nowrap; }
+
+.pm-tv-order-seg { height: 14px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: rgba(255,240,214,.8); min-width: 20px; padding: 0 4px; }
 
 /* ── FOOTER ── */
 .pm-footer {
@@ -709,12 +667,7 @@ const CONFIG = {
     '18998259966':'Roberta Rodrigues',
     '44988436823':'Rafael Vendrame'
   },
-  // Atendentes — disparam pedidos mas NÃO são entregadores
-  // Quando aparecerem como entregador, são ignorados
   atendentes: ['Roberta Rodrigues','Roberta','roberta'],
-  // Entregador padrão para pedidos com roteirização automática
-  // (delivery-routing + "Entrega feita pelo restaurante")
-  // Deixe '' para mostrar como 'Não identificado'
   entregadorPadrao: 'João V. Hansen',
 };
 
@@ -785,19 +738,18 @@ document.getElementById('ptabs').addEventListener('click', e => {
 function startTV(){
   stopTV();
   document.body.classList.add('tv-mode');
-  // Mede alturas reais dos elementos de navegação
-  const headerH  = document.querySelector('.pm-header')?.offsetHeight  || 50;
-  const sitenavH = document.querySelector('.pm-sitenav')?.offsetHeight  || 40;
-  const modtabsH = document.querySelector('.pm-modtabs')?.offsetHeight  || 42;
-  const totalNav = headerH + sitenavH + modtabsH;
-  document.querySelector('.pm-tv').style.height = `calc(100vh - ${totalNav}px)`;
-  S.tvTimer = setInterval(()=>{ if(S.live) conectar(); }, 120000);
+  const headerH=document.querySelector('.pm-header')?.offsetHeight||50;
+  const sitenavH=document.querySelector('.pm-sitenav')?.offsetHeight||40;
+  const modtabsH=document.querySelector('.pm-modtabs')?.offsetHeight||42;
+  const tv=document.querySelector('.pm-tv');
+  if(tv) tv.style.height=`calc(100vh - ${headerH+sitenavH+modtabsH}px)`;
+  S.tvTimer=setInterval(()=>{ if(S.live) conectar(); },120000);
 }
 function stopTV(){
   if(S.tvTimer){ clearInterval(S.tvTimer); S.tvTimer=null; }
   document.body.classList.remove('tv-mode');
-  const tv = document.querySelector('.pm-tv');
-  if(tv) tv.style.height = '';
+  const tv=document.querySelector('.pm-tv');
+  if(tv) tv.style.height='';
 }
 
 // Stats
@@ -832,15 +784,15 @@ function cOpts(yL='min'){
   };
 }
 
+// Resolve nome do entregador a partir do telefone
 function resolveNomeMoto(raw){
   if(!raw) return null;
   const s = raw.trim().replace(/@.*$/, '');
-  // Ignora valores automáticos do sistema — não são entregadores reais
-  const skip = ['integration-api-int-sale','kds','chatbot','sistema','api','delivery-routing','delivery_routing','routing'];
-  if(skip.some(x=>s.toLowerCase().includes(x))) return null;
   const tel = s.replace(/\D/g, '');
   if(CONFIG.entregadores[tel]) return CONFIG.entregadores[tel];
   if(/^\d{10,11}$/.test(tel)) return `(${tel.slice(0,2)}) ${tel.slice(2,7)}-${tel.slice(7)}`;
+  const skip = ['integration-api-int-sale','kds','chatbot','sistema','api','delivery-routing','delivery_routing','routing'];
+  if(skip.some(x=>s.toLowerCase().includes(x))) return null;
   return s || null;
 }
 
@@ -965,18 +917,16 @@ function buildHistMap(histories){
     h.histories.forEach(st=>{
       const desc=(st.desc_store_sale_status||'').trim();
       const dur=parseFloat(st.duration_time_seconds||0);
-      const userName = st.user?.full_name||st.user?.username||'';
       if(desc==='Montagem')                cz+=dur;
       else if(desc==='Aguardando entrega') ag+=dur;
-      else if(desc==='Saiu para entrega'){ en+=dur; if(userName&&!entregadorRaw) entregadorRaw=userName; }
-      // "Entregue" tem o telefone real do motoboy — prioridade máxima
-      else if(desc==='Entregue'){ if(userName) entregadorRaw=userName; }
+      else if(desc==='Saiu para entrega'){ en+=dur; const uN=st.user?.full_name||st.user?.username||''; if(uN&&!entregadorRaw) entregadorRaw=uN; }
+      else if(desc==='Entregue'){ const uN=st.user?.full_name||st.user?.username||''; if(uN) entregadorRaw=uN; }
       else {
         const dl=desc.toLowerCase();
         if(/montagem|cozinha|preparo/i.test(dl))   cz+=dur;
         else if(/aguardando|esperando/i.test(dl))  ag+=dur;
-        else if(/saiu|rota|motoboy/i.test(dl)){ en+=dur; if(userName&&!entregadorRaw) entregadorRaw=userName; }
-        else if(/entregue|entregou/i.test(dl)){ if(userName) entregadorRaw=userName; } // sobrescreve com o real
+        else if(/saiu|rota|motoboy/i.test(dl)){ en+=dur; const uN=st.user?.full_name||st.user?.username||''; if(uN&&!entregadorRaw) entregadorRaw=uN; }
+        else if(/entregue|entregou/i.test(dl)){ const uN=st.user?.full_name||st.user?.username||''; if(uN) entregadorRaw=uN; }
       }
     });
     if(cz>0||ag>0||en>0) map[h.id_sale]={ cz:Math.round(cz/60), ag:Math.round(ag/60), en:Math.round(en/60), entregadorRaw };
@@ -1018,48 +968,21 @@ function mapOrder(r, histMap){
     }
     const tot=cz+ag+en; if(tot<1) return null;
 
-    // Entregador — ordem de prioridade:
-    // 1. delivery_man do pedido (campo direto da Saipos)
-    // 2. histMap entregadorRaw (status histories, excluindo delivery-routing e atendentes)
-    // 3. telefone extraído do campo notes
-    // 4. fallback para entregadorPadrao se "Entrega feita pelo restaurante"
     let entregador='—', _tel=null;
-
-    // 1. Campo delivery_man direto
     if(r.delivery_man?.delivery_man_name){
-      const nm = r.delivery_man.delivery_man_name.trim();
-      const isAtendente = CONFIG.atendentes.some(a=>nm.toLowerCase().includes(a.toLowerCase()));
-      if(nm && !['delivery-routing','delivery_routing'].includes(nm.toLowerCase()) && !isAtendente)
-        entregador = nm;
+      const nm=r.delivery_man.delivery_man_name.trim();
+      const isAt=CONFIG.atendentes?.some(a=>nm.toLowerCase().includes(a.toLowerCase()));
+      if(nm&&!['delivery-routing','delivery_routing'].includes(nm.toLowerCase())&&!isAt) entregador=nm;
     }
-
-    // 2. Histmap
-    if(entregador==='—' && hist?.entregadorRaw){
-      const nome = resolveNomeMoto(hist.entregadorRaw);
-      const isAtendente = nome && CONFIG.atendentes.some(a=>nome.toLowerCase().includes(a.toLowerCase()));
-      if(nome && !isAtendente){ entregador=nome; }
-      const tel = hist.entregadorRaw.replace(/@.*$/,'').replace(/\D/g,'');
+    if(entregador==='—'&&hist?.entregadorRaw){
+      const nome=resolveNomeMoto(hist.entregadorRaw);
+      const isAt=nome&&CONFIG.atendentes?.some(a=>nome.toLowerCase().includes(a.toLowerCase()));
+      if(nome&&!isAt) entregador=nome;
+      const tel=hist.entregadorRaw.replace(/@.*$/,'').replace(/\D/g,'');
       if(/^\d{10,11}$/.test(tel)) _tel=tel;
     }
-
-    // 3. Telefone do campo notes
-    if(entregador==='—' && r.notes){
-      const telMatch = r.notes.match(/[Tt]elefone[:\s]+(\d[\d\s\-()]{8,14}\d)/);
-      if(telMatch){
-        const tel = telMatch[1].replace(/\D/g,'');
-        if(/^\d{10,11}$/.test(tel)){
-          _tel = tel;
-          const nome = resolveNomeMoto(tel);
-          if(nome) entregador = nome;
-        }
-      }
-    }
-
-    // 4. Fallback — roteirização automática + entrega pelo restaurante
-    if(entregador==='—' && tipo===1 &&
-       r.notes?.includes('Entrega feita pelo restaurante') &&
-       CONFIG.entregadorPadrao){
-      entregador = CONFIG.entregadorPadrao;
+    if(entregador==='—'&&tipo===1&&r.notes?.includes('Entrega feita pelo restaurante')&&CONFIG.entregadorPadrao){
+      entregador=CONFIG.entregadorPadrao;
     }
 
     // Canal — usa partner_sale.partner_name ou desc_sale_type ou fallback por tipo
@@ -1331,8 +1254,8 @@ function renderTV(){
   el.innerHTML=`
   <div class="pm-tv-header">
     <div>
-      <div style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:#FFF0D6">bonità <span style="color:#D6453D">·</span> painel operacional</div>
-      <div style="font-size:9px;color:var(--pm-muted);margin-top:1px">${S.live?'🟢 dados ao vivo · atualiza a cada 2 min':'⚪ modo demonstração'}</div>
+      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#FFF0D6">bonità <span style="color:#D6453D">·</span> painel operacional</div>
+      <div style="font-size:10px;color:var(--pm-muted);margin-top:2px">${S.live?'🟢 dados ao vivo · atualiza a cada 2 min':'⚪ modo demonstração'}</div>
     </div>
     <div style="text-align:right">
       <div class="pm-tv-clock" id="tv-clock">${now.toLocaleTimeString('pt-BR')}</div>
@@ -1340,92 +1263,131 @@ function renderTV(){
     </div>
   </div>
 
-  <div class="pm-tv-kpis">
-    <div class="pm-tv-kpi r" style="position:relative">${tvDtag(aC,CONFIG.metaCozinha)}<div class="pm-tv-kpi-lbl">🍕 Montagem</div><div class="pm-tv-kpi-val" style="color:var(--pm-red)">${aC>0?aC.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · meta ${CONFIG.metaCozinha}min</div></div>
-    <div class="pm-tv-kpi p" style="position:relative">${tvDtag(aAg,5)}<div class="pm-tv-kpi-lbl">⏳ Ag. Entrega</div><div class="pm-tv-kpi-val" style="color:var(--pm-purple)">${aAg>0?aAg.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · pizza esperando</div></div>
-    <div class="pm-tv-kpi o" style="position:relative">${tvDtag(aE,CONFIG.metaEntrega)}<div class="pm-tv-kpi-lbl">🛵 Saiu p/ Entrega</div><div class="pm-tv-kpi-val" style="color:var(--pm-orange)">${aE>0?aE.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · motoboy na rua · meta ${CONFIG.metaEntrega}min</div></div>
-    <div class="pm-tv-kpi g" style="position:relative">${tvDtag(aT,CONFIG.metaTotal)}<div class="pm-tv-kpi-lbl">⏱ Total</div><div class="pm-tv-kpi-val" style="color:var(--pm-gold)">${aT>0?aT.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · meta ${CONFIG.metaTotal}min · ${delivery.length} ped.</div></div>
-  </div>
+  <div style="padding:0 1.4rem;margin-bottom:1rem">
+    <div class="pm-tv-kpis">
+      <div class="pm-tv-kpi r">${tvDtag(aC,CONFIG.metaCozinha)}<div class="pm-tv-kpi-lbl">🍕 Montagem</div><div class="pm-tv-kpi-val" style="color:var(--pm-red)">${aC>0?aC.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · meta ${CONFIG.metaCozinha}min</div></div>
+      <div class="pm-tv-kpi p">${tvDtag(aAg,5)}<div class="pm-tv-kpi-lbl">⏳ Ag. Entrega</div><div class="pm-tv-kpi-val" style="color:var(--pm-purple)">${aAg>0?aAg.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · pizza esperando</div></div>
+      <div class="pm-tv-kpi o">${tvDtag(aE,CONFIG.metaEntrega)}<div class="pm-tv-kpi-lbl">🛵 Saiu p/ Entrega</div><div class="pm-tv-kpi-val" style="color:var(--pm-orange)">${aE>0?aE.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · motoboy na rua · meta ${CONFIG.metaEntrega}min</div></div>
+      <div class="pm-tv-kpi g">${tvDtag(aT,CONFIG.metaTotal)}<div class="pm-tv-kpi-lbl">⏱ Total</div><div class="pm-tv-kpi-val" style="color:var(--pm-gold)">${aT>0?aT.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · meta ${CONFIG.metaTotal}min · ${delivery.length} pedidos</div></div>
+    </div>
 
-  <div class="pm-tv-main">
+    <div class="pm-tv-sla" style="margin-bottom:1rem">
+      <div class="pm-tv-sla-card" style="border-top:3px solid var(--pm-ok)"><div class="pm-tv-sla-pct" style="color:var(--pm-ok)">${s30.toFixed(1)}%</div><div class="pm-tv-sla-lbl">≤ 30min — excelente</div></div>
+      <div class="pm-tv-sla-card" style="border-top:3px solid var(--pm-warn)"><div class="pm-tv-sla-pct" style="color:var(--pm-warn)">${s45.toFixed(1)}%</div><div class="pm-tv-sla-lbl">31–45min — ok</div></div>
+      <div class="pm-tv-sla-card" style="border-top:3px solid var(--pm-bad)"><div class="pm-tv-sla-pct" style="color:var(--pm-bad)">${sBad.toFixed(1)}%</div><div class="pm-tv-sla-lbl">> 45min — crítico</div></div>
+    </div>
 
-    <!-- COLUNA ESQUERDA: SLA + Entregadores -->
-    <div class="pm-tv-left">
+    <div class="pm-tv-body">
       <div class="pm-tv-card">
-        <div class="pm-tv-card-title">SLA hoje</div>
-        <div class="pm-tv-sla">
-          <div class="pm-tv-sla-card" style="border-left:3px solid var(--pm-ok)"><div class="pm-tv-sla-pct" style="color:var(--pm-ok)">${s30.toFixed(0)}%</div><div class="pm-tv-sla-lbl">≤ 30min<br><small>excelente</small></div></div>
-          <div class="pm-tv-sla-card" style="border-left:3px solid var(--pm-warn)"><div class="pm-tv-sla-pct" style="color:var(--pm-warn)">${s45.toFixed(0)}%</div><div class="pm-tv-sla-lbl">31–45min<br><small>ok</small></div></div>
-          <div class="pm-tv-sla-card" style="border-left:3px solid var(--pm-bad)"><div class="pm-tv-sla-pct" style="color:var(--pm-bad)">${sBad.toFixed(0)}%</div><div class="pm-tv-sla-lbl">> 45min<br><small>crítico</small></div></div>
-        </div>
-      </div>
-      <div class="pm-tv-card flex1">
-        <div class="pm-tv-card-title">entregadores hoje</div>
-        ${motos.length?motos.map(([name,ords])=>{
-          const ae=avg(ords.map(o=>o.entrega)),at=avg(ords.map(o=>o.total)),col=sColor(at);
-          return`<div class="pm-tv-moto-row">
-            <div style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500">🛵 ${name} <span style="font-size:9px;color:var(--pm-muted)">${ords.length}p</span></div>
-            <div style="display:flex;gap:10px;font-family:var(--pm-mono);font-size:11px">
-              <div style="text-align:center"><div style="color:var(--pm-orange);font-size:14px;font-weight:600">${ae.toFixed(0)}m</div><div style="font-size:8px;color:var(--pm-muted)">entrega</div></div>
-              <div style="text-align:center"><div style="color:${col};font-size:14px;font-weight:600">${at.toFixed(0)}m</div><div style="font-size:8px;color:var(--pm-muted)">total</div></div>
-            </div>
-          </div>`;
-        }).join(''):'<div style="font-size:11px;color:var(--pm-muted);padding:.3rem">Nenhuma entrega hoje</div>'}
-      </div>
-    </div>
-
-    <!-- COLUNA CENTRAL: Dia da semana + Gráfico barras -->
-    <div class="pm-tv-center">
-      <div class="pm-tv-card flex1">
         <div class="pm-tv-card-title">média por dia da semana</div>
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;height:calc(100% - 24px)">
-          ${DAYS_PT.map((d,i)=>{
-            const a=byDay[i],av=avg(a),col=av<=30?'var(--pm-ok)':av<=45?'var(--pm-warn)':'var(--pm-bad)';
-            const motos2=new Set(S.orders.filter(o=>o.tipo===1&&o.weekday===i&&o.entregador!=='—').map(o=>o.entregador));
-            return`<div class="pm-wc" style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">
-              <div class="pm-wv" style="color:${col};font-size:13px">${av?av.toFixed(0)+'m':'—'}</div>
-              <div class="pm-wb" style="background:${col};width:70%;min-height:3px;border-radius:3px 3px 0 0;height:${Math.round(av/mxA*60)}%;transition:.4s"></div>
-              <div class="pm-wn ${i===todayWd?'today':''}" style="margin-top:4px;font-size:10px">${d}</div>
-              <div class="pm-wct" style="font-size:9px">${a.length}p</div>
-              ${motos2.size>0?`<div class="pm-wct" style="color:var(--pm-orange);font-size:9px">🛵${motos2.size}</div>`:''}
-            </div>`;
-          }).join('')}
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+          ${DAYS_PT.map((d,i)=>{const a=byDay[i],av=avg(a),col=av<=30?'var(--pm-ok)':av<=45?'var(--pm-warn)':'var(--pm-bad)';const motos2=new Set(S.orders.filter(o=>o.tipo===1&&o.weekday===i&&o.entregador!=='—').map(o=>o.entregador));return`<div class="pm-wc"><div class="pm-wn ${i===todayWd?'today':''}">${d}</div><div class="pm-wv" style="color:${col}">${av?av.toFixed(0)+'m':'—'}</div><div class="pm-wb" style="background:${col};width:${Math.round(av/mxA*80)}%;min-width:2px;margin:3px auto"></div><div class="pm-wct">${a.length}p</div>${motos2.size>0?`<div class="pm-wct" style="color:var(--pm-orange)">🛵${motos2.size}</div>`:''}</div>`;}).join('')}
         </div>
       </div>
-    </div>
-
-    <!-- COLUNA DIREITA: Últimos pedidos -->
-    <div class="pm-tv-right">
-      <div class="pm-tv-card flex1">
-        <div class="pm-tv-card-title">últimos pedidos de hoje</div>
-        ${ultimos.length?(()=>{
-          const maxT = Math.max(...ultimos.map(o=>o.total), 45);
-          return ultimos.map(o=>{
-            const totalW = Math.round(o.total/maxT*100);
-            const czW    = Math.round(o.cozinha/o.total*totalW);
-            const agW    = Math.round(o.aguardando/o.total*totalW);
-            const enW    = totalW - czW - agW;
-            const col    = sColor(o.total);
-            return`<div class="pm-tv-order-row">
-              <span style="color:var(--pm-muted);min-width:52px">${o.id}</span>
-              <span style="color:var(--pm-muted);min-width:44px">${o.orderTime.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>
-              <div style="flex:1;display:flex;gap:3px;align-items:center">
-                <div style="display:flex;gap:3px;width:${totalW}%">
-                  <div class="pm-tv-order-seg" style="background:var(--pm-red);flex:${czW}">${o.cozinha}m</div>
-                  ${o.aguardando>0?`<div class="pm-tv-order-seg" style="background:var(--pm-purple);flex:${agW}">${o.aguardando}m</div>`:''}
-                  <div class="pm-tv-order-seg" style="background:var(--pm-orange);flex:${enW||1}">${o.entrega}m</div>
-                </div>
-              </div>
-              <strong style="color:${col};min-width:34px;text-align:right">${o.total}m</strong>
-              <span style="color:var(--pm-muted);min-width:52px;text-align:right">${o.entregador==='—'?'':o.entregador.split(' ')[0]}</span>
-            </div>`;
-          }).join('');
-        })():'<div style="font-size:11px;color:var(--pm-muted)">Nenhum pedido hoje ainda</div>'}
+      <div class="pm-tv-card">
+        <div class="pm-tv-card-title">entregadores hoje</div>
+        ${motos.length?motos.map(([name,ords])=>{const ae=avg(ords.map(o=>o.entrega)),at=avg(ords.map(o=>o.total)),col=sColor(at);return`<div class="pm-tv-moto-row"><div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500">🛵 ${name} <span style="font-size:10px;color:var(--pm-muted)">${ords.length}p</span></div><div style="display:flex;gap:12px;font-family:var(--pm-mono);font-size:12px"><div style="text-align:center"><div style="color:var(--pm-orange);font-size:15px;font-weight:600">${ae.toFixed(0)}m</div><div style="font-size:9px;color:var(--pm-muted)">entrega</div></div><div style="text-align:center"><div style="color:${col};font-size:15px;font-weight:600">${at.toFixed(0)}m</div><div style="font-size:9px;color:var(--pm-muted)">total</div></div></div></div>`;}).join(''):'<div style="font-size:12px;color:var(--pm-muted);padding:.5rem">Nenhuma entrega hoje ainda</div>'}
       </div>
     </div>
 
-  </div>
-  `;
-}YPE html>
+    <div>
+      <div class="pm-tv-card-title" style="margin-bottom:.6rem">últimos pedidos de hoje</div>
+      ${ultimos.length?(()=>{
+        const maxT=Math.max(...ultimos.map(o=>o.total),45);
+        return ultimos.map(o=>{
+          const totalW=Math.round(o.total/maxT*100);
+          const czW=Math.round(o.cozinha/o.total*totalW);
+          const agW=Math.round(o.aguardando/o.total*totalW);
+          const enW=totalW-czW-agW;
+          const col=sColor(o.total);
+          return`<div class="pm-tv-order-row"><span style="color:var(--pm-muted);min-width:60px">${o.id}</span><span style="color:var(--pm-muted);min-width:50px">${o.orderTime.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span><div style="flex:1;display:flex;gap:3px;align-items:center"><div style="display:flex;gap:3px;width:${totalW}%"><div class="pm-tv-order-seg" style="background:var(--pm-red);flex:${czW}">${o.cozinha}m</div>${o.aguardando>0?`<div class="pm-tv-order-seg" style="background:var(--pm-purple);flex:${agW}">${o.aguardando}m</div>`:''}<div class="pm-tv-order-seg" style="background:var(--pm-orange);flex:${enW||1}">${o.entrega}m</div></div></div><strong style="color:${col};min-width:40px;text-align:right">${o.total}m</strong><span style="color:var(--pm-muted);min-width:60px">${o.entregador==='—'?'':o.entregador.split(' ')[0]}</span></div>`;
+        }).join('');
+      })():'<div style="font-size:12px;color:var(--pm-muted)">Nenhum pedido de delivery hoje ainda</div>'}
+    </div>
+  </div>`;
+}
+
+// ── GRÁFICOS ──────────────────────────────────────────────
+function renderWd(id,orders){
+  const byDay={}, byM={};
+  for(let d=0;d<7;d++){byDay[d]=[];byM[d]=new Set();}
+  orders.forEach(o=>{byDay[o.weekday].push(o.total); if(o.entregador&&o.entregador!=='—') byM[o.weekday].add(o.entregador);});
+  const tdWd=new Date().getDay(), mxA=Math.max(...Object.values(byDay).map(a=>avg(a)||0))||1;
+  const el=document.getElementById(id); if(!el) return;
+  el.innerHTML=DAYS_PT.map((d,i)=>{
+    const a=byDay[i],av=avg(a),m=byM[i].size, col=av<=30?'var(--pm-ok)':av<=45?'var(--pm-warn)':'var(--pm-bad)';
+    return`<div class="pm-wc"><div class="pm-wn ${i===tdWd?'today':''}">${d}</div><div class="pm-wv" style="color:${col}">${av?av.toFixed(1)+'m':'—'}</div><div class="pm-wb" style="background:${col};width:${Math.round(av/mxA*80)}%;min-width:3px"></div><div class="pm-wct">${a.length}p</div>${m>0?`<div class="pm-wct" style="color:var(--pm-orange)">🛵 ${m}</div>`:''}</div>`;
+  }).join('');
+}
+
+function renderDaily(orders){
+  const bd={};
+  orders.forEach(o=>{const k=o.orderTime.toLocaleDateString('pt-BR'); if(!bd[k]) bd[k]={cz:[],ag:[],en:[],to:[]}; bd[k].cz.push(o.cozinha); bd[k].ag.push(o.aguardando||0); bd[k].en.push(o.entrega); bd[k].to.push(o.total);});
+  const lb=Object.keys(bd).slice(-14);
+  dChart('c-daily'); const ctx=document.getElementById('c-daily'); if(!ctx) return;
+  S.charts['c-daily']=new Chart(ctx,{type:'line',data:{labels:lb,datasets:[
+    {label:'montagem',data:lb.map(k=>+avg(bd[k].cz).toFixed(1)),borderColor:'#D6453D',backgroundColor:'rgba(214,69,61,.07)',tension:.4,pointRadius:2},
+    {label:'ag.entrega',data:lb.map(k=>+avg(bd[k].ag).toFixed(1)),borderColor:'#7a5fa8',backgroundColor:'rgba(122,95,168,.06)',tension:.4,pointRadius:2,borderDash:[3,2]},
+    {label:'entrega',data:lb.map(k=>+avg(bd[k].en).toFixed(1)),borderColor:'#e07b3a',backgroundColor:'rgba(224,123,58,.07)',tension:.4,pointRadius:2},
+    {label:'total',data:lb.map(k=>+avg(bd[k].to).toFixed(1)),borderColor:'#c8983a',backgroundColor:'rgba(200,152,58,.08)',tension:.4,pointRadius:2,borderWidth:2},
+    {label:'meta',data:lb.map(()=>CONFIG.metaTotal),borderColor:'rgba(255,240,214,.2)',borderDash:[6,4],pointRadius:0,borderWidth:1}
+  ]},options:cOpts('minutos')});
+}
+
+function renderHist(orders){
+  const bins=[],lb=[];
+  for(let i=10;i<=65;i+=5){lb.push(`${i}-${i+4}`); bins.push(orders.filter(o=>o.total>=i&&o.total<i+5).length);}
+  const cols=lb.map((_,i)=>{const v=10+i*5; return v<=30?'rgba(45,158,107,.75)':v<=45?'rgba(196,154,42,.75)':'rgba(201,64,64,.75)';});
+  dChart('c-hist'); const ctx=document.getElementById('c-hist'); if(!ctx) return;
+  S.charts['c-hist']=new Chart(ctx,{type:'bar',data:{labels:lb,datasets:[{label:'pedidos',data:bins,backgroundColor:cols,borderRadius:2}]},options:{...cOpts('pedidos'),plugins:{...cOpts().plugins,legend:{display:false}}}});
+}
+
+function renderCmp(orders){
+  const d=S.cmpDay||1, now=new Date(), cols=['#D6453D','#e07b3a','#c8983a','#4a8fa8'], ds=[];
+  for(let w=0;w<4;w++){
+    const tgt=new Date(now); tgt.setDate(now.getDate()-now.getDay()-w*7+d); tgt.setHours(0,0,0,0);
+    const nxt=new Date(tgt); nxt.setDate(tgt.getDate()+1);
+    const day=orders.filter(o=>o.orderTime>=tgt&&o.orderTime<nxt);
+    const byH={}; day.forEach(o=>{if(!byH[o.hour])byH[o.hour]=[]; byH[o.hour].push(o.total);});
+    ds.push({label:tgt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),data:Array.from({length:14},(_,i)=>byH[i+10]?+avg(byH[i+10]).toFixed(1):null),borderColor:cols[w],backgroundColor:'transparent',tension:.4,pointRadius:2,spanGaps:true});
+  }
+  const sub=document.getElementById('del-csub');
+  if(sub) sub.textContent=`${DAYS_FULL[d].toLowerCase()} × 4 semanas — tempo total médio por hora`;
+  dChart('c-cmp'); const ctx=document.getElementById('c-cmp'); if(!ctx) return;
+  S.charts['c-cmp']=new Chart(ctx,{type:'line',data:{labels:Array.from({length:14},(_,i)=>`${i+10}h`),datasets:ds},options:cOpts('min')});
+}
+
+function renderPct(orders){
+  const byDay=DAYS_PT.map((_,i)=>orders.filter(o=>o.weekday===i).map(o=>o.total));
+  dChart('c-pct'); const ctx=document.getElementById('c-pct'); if(!ctx) return;
+  const tc='rgba(255,240,214,.35)', gc='rgba(255,240,214,.05)';
+  S.charts['c-pct']=new Chart(ctx,{type:'bar',data:{labels:DAYS_PT,datasets:[
+    {label:'p25',data:byDay.map(a=>Math.round(pct(a,25))),backgroundColor:'rgba(74,143,168,.3)',stack:'s'},
+    {label:'mediana',data:byDay.map(a=>Math.round(med(a))-Math.round(pct(a,25))),backgroundColor:'rgba(200,152,58,.75)',stack:'s'},
+    {label:'p75',data:byDay.map(a=>Math.round(pct(a,75))-Math.round(med(a))),backgroundColor:'rgba(224,123,58,.4)',stack:'s'},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tc,font:{size:10},boxWidth:10}}},scales:{x:{stacked:true,ticks:{color:tc,font:{size:10}},grid:{color:gc}},y:{stacked:true,ticks:{color:tc,font:{size:10}},grid:{color:gc}}}}});
+}
+
+function renderHeatmap(id,orders){
+  const mx={}; DAYS_PT.forEach((_,di)=>{mx[di]={}; for(let h=10;h<=23;h++) mx[di][h]=[];});
+  orders.forEach(o=>{if(mx[o.weekday]&&o.hour>=10&&o.hour<=23) mx[o.weekday][o.hour].push(o.total);});
+  let gm=0; Object.values(mx).forEach(row=>Object.values(row).forEach(a=>{const av=avg(a); if(av>gm) gm=av;}));
+  const hrs=Array.from({length:14},(_,i)=>i+10);
+  let h=`<div style="display:grid;grid-template-columns:auto repeat(14,1fr);gap:2px">`;
+  h+=`<div></div>${hrs.map(hr=>`<div class="pm-hmh">${hr}h</div>`).join('')}`;
+  DAYS_PT.forEach((day,di)=>{
+    h+=`<div class="pm-hmr">${day}</div>`;
+    hrs.forEach(hr=>{
+      const vals=mx[di][hr], a=avg(vals), p=gm?a/gm:0;
+      const bg=!vals.length?'rgba(255,240,214,.03)':`rgb(${Math.round(2+p*210)},${Math.round(77+p*80)},${Math.round(52-p*40)})`;
+      h+=`<div class="pm-hmc" style="background:${bg}" title="${vals.length?`${day} ${hr}h — ${a.toFixed(1)}min (${vals.length}p)`:'sem dados'}"></div>`;
+    });
+  });
+  h+='</div>'; const el=document.getElementById(id); if(el) el.innerHTML=h;
+}
+
+// ── INIT ──────────────────────────────────────────────────
+loadDemo();
+</script>
 </body>
 </html>

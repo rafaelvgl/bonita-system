@@ -837,7 +837,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-06-01.1</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-06-02.2</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -2070,15 +2070,32 @@ async function askClaude(message, systemPrompt, maxTokens=1000) {
   const gsUrl = BC?.gsUrl || document.getElementById('cfg-saipos-url')?.value?.trim() || '';
   if (!gsUrl) throw new Error('URL do proxy não configurada em ⚙ Config');
 
-  const params = new URLSearchParams({
+  const body = {
     endpoint:   'claude',
     message:    message,
     system:     systemPrompt || 'Você é o assistente da Bonità Pizzaria em Penápolis, SP. Responda sempre em português.',
     model:      'claude-sonnet-4-6',
-    max_tokens: maxTokens,
-  });
+    max_tokens: String(maxTokens),
+  };
 
-  const resp = await fetch(`${gsUrl}?${params}`);
+  let resp;
+  try {
+    // POST evita limite de URL para prompts longos
+    resp = await fetch(gsUrl, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+    });
+  } catch(e) {
+    // Fallback para GET se POST falhar (CORS em alguns ambientes)
+    try {
+      const params = new URLSearchParams({ ...body, message: message.slice(0, 2000) });
+      resp = await fetch(`${gsUrl}?${params}`);
+    } catch(e2) {
+      throw new Error('Não foi possível contatar o proxy. Verifique a URL em ⚙ Config.');
+    }
+  }
+
   if (!resp.ok) throw new Error(`Proxy HTTP ${resp.status}`);
   const json = await resp.json();
   if (json.error) throw new Error(json.error);
@@ -6173,107 +6190,94 @@ const ANALISE_ESTOQUE = {"criticos": [{"ingrediente": "Muçarela Porcionada 100g
 STATE.estoque = ESTOQUE_BONITA;
 
 function carregarEstoqueReal() {
-  const nCrit = ANALISE_ESTOQUE.criticos.length;
-  const nAt   = ANALISE_ESTOQUE.atencao.length;
-  const nOk   = ANALISE_ESTOQUE.ok.length;
+  // Usa dados reais da API se disponíveis, senão usa o hardcoded
+  const useReal = STATE.estoqueReal && STATE.estoqueReal.length > 0;
+  const fonte   = useReal ? 'API Saipos' : 'Dados de 22/05/2026';
 
-  // ── 1. Tabela de ingredientes (aba Estoque) ──────────────
-  const allItems = [
-    ...ANALISE_ESTOQUE.criticos.map(i => ({...i, _status: 'critico'})),
-    ...ANALISE_ESTOQUE.atencao.map(i  => ({...i, _status: 'atencao'})),
-    ...ANALISE_ESTOQUE.ok.map(i       => ({...i, _status: 'ok'})),
-  ];
+  let allItems;
+  if (useReal) {
+    allItems = STATE.estoqueReal.map(e => {
+      const estoque = parseFloat(e.estoque || e.current_inventory || 0);
+      const minimo  = parseFloat(e.estoque_min || e.minimium_stock || 0);
+      const status  = estoque <= 0 ? 'critico' : estoque < minimo && minimo > 0 ? 'atencao' : 'ok';
+      return { ingrediente: e.ingrediente || '', grupo: e.grupo || '', estoque, unidade: e.unidade || '',
+        estoque_min: minimo, custo_unit: parseFloat(e.custo_unit || 0), _status: status };
+    }).sort((a,b) => ({ critico:0, atencao:1, ok:2 }[a._status]||0) - ({ critico:0, atencao:1, ok:2 }[b._status]||0));
+  } else {
+    allItems = [
+      ...ANALISE_ESTOQUE.criticos.map(i => ({...i, _status:'critico'})),
+      ...ANALISE_ESTOQUE.atencao.map(i  => ({...i, _status:'atencao'})),
+      ...ANALISE_ESTOQUE.ok.map(i       => ({...i, _status:'ok'})),
+    ];
+  }
+
+  const nCrit = allItems.filter(i => i._status==='critico').length;
+  const nAt   = allItems.filter(i => i._status==='atencao').length;
+  const nOk   = allItems.filter(i => i._status==='ok').length;
+
+  // Cabeçalho da tabela
+  const thead = document.querySelector('#tabela-estoque thead tr');
+  if (thead) thead.innerHTML = useReal
+    ? '<th>Ingrediente</th><th>Grupo</th><th>Em estoque</th><th>Mínimo</th><th>Custo unit.</th><th>Status</th>'
+    : '<th>Ingrediente</th><th>Em estoque</th><th>Necessário (7d)</th><th>Saldo</th><th>Status</th>';
+
+  // Linhas da tabela
   const rows = allItems.map(item => {
-    const badgeCls = item._status === 'critico' ? 'badge-red' : item._status === 'atencao' ? 'badge-blue' : 'badge-green';
-    const label    = item._status === 'critico' ? 'Crítico'   : item._status === 'atencao'  ? 'Atenção'    : 'OK';
-    const saldoStr = item.saldo !== undefined ? (item.saldo >= 0 ? `+${item.saldo.toFixed(2)}` : item.saldo.toFixed(2)) : '–';
-    const saldoStyle = item.saldo !== undefined && item.saldo < 0 ? 'color:#f87171;font-weight:600' : 'color:#4ade80';
-    return `<tr>
-      <td class="bold" style="color:var(--cream)">${item.ingrediente}</td>
-      <td>${(item.estoque || 0).toFixed(2)} ${item.unidade || ''}</td>
-      <td>${(item.necessario_7d || 0).toFixed(2)} ${item.unidade || ''}</td>
-      <td style="${saldoStyle}">${saldoStr}</td>
-      <td><span class="badge ${badgeCls}">${label}</span></td>
-    </tr>`;
+    const bc = item._status==='critico'?'badge-red':item._status==='atencao'?'badge-cream':'badge-green';
+    const lb = item._status==='critico'?'Crítico':item._status==='atencao'?'Atenção':'OK';
+    if (useReal) {
+      return `<tr><td class="bold" style="color:var(--cream)">${item.ingrediente}</td><td><span class="small faint">${item.grupo}</span></td><td class="bold">${item.estoque.toFixed(3)} ${item.unidade}</td><td>${item.estoque_min>0?item.estoque_min.toFixed(2)+' '+item.unidade:'–'}</td><td>${item.custo_unit>0?'R$'+item.custo_unit.toFixed(2):'–'}</td><td><span class="badge ${bc}">${lb}</span></td></tr>`;
+    } else {
+      const saldo = item.saldo;
+      const ss = saldo!==undefined&&saldo<0?'color:#f87171;font-weight:600':'color:#4ade80';
+      return `<tr><td class="bold" style="color:var(--cream)">${item.ingrediente}</td><td>${(item.estoque||0).toFixed(2)} ${item.unidade||''}</td><td>${(item.necessario_7d||0).toFixed(2)} ${item.unidade||''}</td><td style="${ss}">${saldo!==undefined?(saldo>=0?'+'+saldo.toFixed(2):saldo.toFixed(2)):'–'}</td><td><span class="badge ${bc}">${lb}</span></td></tr>`;
+    }
   }).join('');
-  const tbody = document.getElementById('tbody-estoque');
-  if (tbody) tbody.innerHTML = rows || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-faint)">Nenhum item</td></tr>';
 
-  // ── 2. KPI críticos ──────────────────────────────────────
+  const tbody = document.getElementById('tbody-estoque');
+  if (tbody) tbody.innerHTML = rows || `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-faint)">Nenhum item</td></tr>`;
+
   const kpiEl = document.getElementById('kpi-criticos');
   if (kpiEl) kpiEl.textContent = nCrit;
   const badgeEl = document.getElementById('badge-estoque');
-  if (badgeEl && nCrit > 0) { badgeEl.style.display = 'inline-flex'; badgeEl.textContent = nCrit; }
+  if (badgeEl) { badgeEl.style.display = nCrit>0?'inline-flex':'none'; badgeEl.textContent = nCrit; }
 
-  // ── 3. Resumo card (aba Estoque — id único: card-estoque-resumo) ──
-  const resumoCard = document.getElementById('card-estoque-resumo');
   const resumoContent = document.getElementById('estoque-resumo-content');
-  if (resumoContent) {
-    resumoContent.innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center">
-        <div>
-          <div style="font-size:2rem;font-weight:700;color:#f87171;font-family:var(--font-display)">${nCrit}</div>
-          <div class="small faint">Críticos</div>
-        </div>
-        <div>
-          <div style="font-size:2rem;font-weight:700;color:#fac800;font-family:var(--font-display)">${nAt}</div>
-          <div class="small faint">Atenção</div>
-        </div>
-        <div>
-          <div style="font-size:2rem;font-weight:700;color:#4ade80;font-family:var(--font-display)">${nOk}</div>
-          <div class="small faint">OK</div>
-        </div>
-      </div>
-      <div class="sep"></div>
-      <div class="small faint">Posição: 22/05/2026 · ${ESTOQUE_BONITA.length} itens</div>`;
-  }
+  if (resumoContent) resumoContent.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center">
+      <div><div style="font-size:2rem;font-weight:700;color:#f87171;font-family:var(--font-display)">${nCrit}</div><div class="small faint">Críticos</div></div>
+      <div><div style="font-size:2rem;font-weight:700;color:#fac800;font-family:var(--font-display)">${nAt}</div><div class="small faint">Atenção</div></div>
+      <div><div style="font-size:2rem;font-weight:700;color:#4ade80;font-family:var(--font-display)">${nOk}</div><div class="small faint">OK</div></div>
+    </div><div class="sep"></div>
+    <div class="small faint">${fonte} · ${allItems.length} itens</div>`;
+  const resumoCard = document.getElementById('card-estoque-resumo');
   if (resumoCard) resumoCard.style.display = 'block';
 
-  // ── 4. Alert status ──────────────────────────────────────
   const alertEl = document.getElementById('alert-estoque-status');
   if (alertEl) {
-    alertEl.className = nCrit > 0 ? 'alert alert-danger' : 'alert alert-success';
-    alertEl.innerHTML = nCrit > 0
-      ? `<span>⚠</span><span><strong>${nCrit} itens críticos</strong> — vão faltar nos próximos 7 dias.</span>`
-      : `<span>✓</span><span>Estoque carregado — ${ESTOQUE_BONITA.length} itens · 22/05/2026</span>`;
+    alertEl.className = nCrit>0?'alert alert-danger':'alert alert-success';
+    alertEl.innerHTML = nCrit>0
+      ? `<span>⚠</span><span><strong>${nCrit} críticos</strong> · ${nAt} atenção · ${fonte}</span>`
+      : `<span>✓</span><span>Estoque OK · ${allItems.length} itens · ${fonte}</span>`;
   }
 
-  // ── 5. Upload zone ───────────────────────────────────────
-  const uz = document.getElementById('upload-zone-estoque');
-  if (uz) {
-    uz.innerHTML = `<div class="upload-icon">✅</div>
-      <div class="upload-title">Estoque carregado — 22/05/2026</div>
-      <div class="upload-hint">${ESTOQUE_BONITA.length} ingredientes · ${nCrit} críticos · Clique para atualizar</div>`;
-    uz.style.borderColor = nCrit > 0 ? 'var(--red)' : '#4ade80';
-    uz.style.background  = nCrit > 0 ? 'rgba(214,69,61,0.08)' : 'rgba(74,222,128,0.06)';
-  }
-
-  // ── 6. Alertas no Dashboard ──────────────────────────────
   const alertas = document.getElementById('alertas-container');
   if (alertas) {
-    const top3 = ANALISE_ESTOQUE.criticos.slice(0, 3);
-    const alertsHtml = top3.map(c => `
-      <div class="alert alert-danger" style="margin-bottom:8px">
-        <span>⚠</span>
-        <div><strong>${c.ingrediente}</strong> — estoque: ${c.estoque.toFixed(2)} ${c.unidade} · precisa: ${c.necessario_7d.toFixed(2)} ${c.unidade} · <strong>falta ${Math.abs(c.saldo).toFixed(2)} ${c.unidade}</strong></div>
-      </div>`).join('');
-    const moreHtml = nCrit > 3
-      ? `<div class="alert alert-warning"><span>+${nCrit - 3}</span><span>mais itens críticos — veja a aba Estoque</span></div>`
-      : '';
-    alertas.innerHTML = alertsHtml + moreHtml;
+    const criticos = allItems.filter(i=>i._status==='critico').slice(0,3);
+    alertas.innerHTML = criticos.length===0
+      ? '<div class="alert alert-success"><span>✓</span><span>Sem itens críticos</span></div>'
+      : criticos.map(c=>`<div class="alert alert-danger" style="margin-bottom:8px"><span>⚠</span><div><strong>${c.ingrediente}</strong> — ${c.estoque.toFixed(useReal?3:2)} ${c.unidade}${useReal&&c.estoque_min>0?' · mín: '+c.estoque_min.toFixed(2)+' '+c.unidade:c.saldo!==undefined?' · falta '+Math.abs(c.saldo).toFixed(2):''}</div></div>`).join('')
+        + (nCrit>3?`<div class="alert alert-warning"><span>+${nCrit-3}</span><span> mais críticos</span></div>`:'');
   }
 
-  // ── 7. Resumo no Dashboard (card-estoque-resumo-dash) ────
-  const dashCard    = document.getElementById('card-estoque-resumo-dash');
   const dashContent = document.getElementById('estoque-resumo-content-dash');
-  if (dashContent) {
-    dashContent.innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center">
-        <div><div style="font-size:1.6rem;font-weight:700;color:#f87171">${nCrit}</div><div class="small faint">Críticos</div></div>
-        <div><div style="font-size:1.6rem;font-weight:700;color:#fac800">${nAt}</div><div class="small faint">Atenção</div></div>
-        <div><div style="font-size:1.6rem;font-weight:700;color:#4ade80">${nOk}</div><div class="small faint">OK</div></div>
-      </div>`;
-  }
+  if (dashContent) dashContent.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center">
+      <div><div style="font-size:1.6rem;font-weight:700;color:#f87171">${nCrit}</div><div class="small faint">Críticos</div></div>
+      <div><div style="font-size:1.6rem;font-weight:700;color:#fac800">${nAt}</div><div class="small faint">Atenção</div></div>
+      <div><div style="font-size:1.6rem;font-weight:700;color:#4ade80">${nOk}</div><div class="small faint">OK</div></div>
+    </div>`;
+  const dashCard = document.getElementById('card-estoque-resumo-dash');
   if (dashCard) dashCard.style.display = 'block';
 }
 

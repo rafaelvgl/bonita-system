@@ -700,6 +700,7 @@
             </select>
           </div>
           <button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="salvarSaipos()">💾 Salvar e testar conexão</button>
+          <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:6px" onclick="syncFull()">🔄 Full sync (${document.getElementById('cfg-historico')?.value||90} dias)</button>
           <div id="saipos-status-msg" class="small" style="display:none;margin-top:10px"></div>
         </div>
       </div>
@@ -836,7 +837,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-05-31.9</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-06-01.1</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -1170,218 +1171,180 @@ function extrairTamanho(texto) {
 }
 
 let _syncRunning = false;
+
+// ── Carrega do cache Sheets (rápido, sem chamar Saipos) ────
+async function carregarCache() {
+  const BC    = window.BONITA_CONFIG?.saipos;
+  const gsUrl = BC?.gsUrl || document.getElementById('cfg-saipos-url')?.value?.trim() || '';
+  const token = BC?.token || '';
+  if (!gsUrl) return false;
+
+  const bearer = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+
+  try {
+    showToast('Carregando cache local...', 'info');
+
+    // Status do cache
+    const statusResp = await fetch(`${gsUrl}?endpoint=cache_status`);
+    const status = await statusResp.json();
+    if (status.error || !status.ultima_sync) {
+      showToast('Cache vazio — sincronize pela primeira vez', 'info');
+      return false;
+    }
+
+    // Lê vendas e itens do cache em paralelo
+    const [vendasResp, itensResp, estqResp] = await Promise.all([
+      fetch(`${gsUrl}?endpoint=cache_read&tipo=vendas&dias=90`),
+      fetch(`${gsUrl}?endpoint=cache_read&tipo=itens&dias=90`),
+      fetch(`${gsUrl}?endpoint=cache_read&tipo=estoque`),
+    ]);
+
+    const vendas = await vendasResp.json();
+    const itens  = await itensResp.json();
+    const estq   = await estqResp.json();
+
+    if (!Array.isArray(vendas) || vendas.length === 0) {
+      showToast('Cache vazio — clique em Sincronizar', 'info');
+      return false;
+    }
+
+    // Indexa itens por id_sale
+    const itemsBySale = {};
+    if (Array.isArray(itens)) {
+      itens.forEach(item => {
+        const sid = item.id_sale;
+        if (!sid) return;
+        if (!itemsBySale[sid]) itemsBySale[sid] = [];
+        const choices = String(item.choices||'').split(' | ').filter(Boolean);
+        itemsBySale[sid].push({
+          desc_sale_item: item.desc_sale_item,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          choices: choices.map(c => ({ desc_sale_item_choice: c, deleted: 'N', aditional_price: 0 })),
+        });
+      });
+    }
+
+    // Monta allSalesFull e historico
+    STATE.allSalesFull = vendas
+      .filter(r => r.canceled !== 'Y' && r.canceled !== true)
+      .map(r => ({ ...r, sale_items: itemsBySale[r.id_sale] || [] }))
+      .sort((a,b) => String(b.created_at).localeCompare(String(a.created_at)));
+
+    STATE.historico = [];
+    STATE.allSalesFull.forEach(r => {
+      const data = String(r.created_at||r.shift_date||'').slice(0,10);
+      if (!data) return;
+      const canal = r.canal || r.partner_name || 'Delivery';
+      const items = r.sale_items || [];
+      if (items.length > 0) {
+        items.forEach(item => {
+          const choices = (item.choices||[]).filter(c => c.deleted !== 'Y');
+          if (choices.length > 0) {
+            choices.forEach(c => {
+              STATE.historico.push({ data, sabor: (c.desc_sale_item_choice||'').trim(),
+                tamanho: extrairTamanho(item.desc_sale_item), qtd: parseFloat(item.quantity||1)/choices.length,
+                valor: parseFloat(r.total_amount||0)/items.length, canal });
+            });
+          } else {
+            STATE.historico.push({ data, sabor: (item.desc_sale_item||'').split(':')[0].trim(),
+              tamanho: extrairTamanho(item.desc_sale_item), qtd: parseFloat(item.quantity||1),
+              valor: parseFloat(r.total_amount||0)/items.length, canal });
+          }
+        });
+      } else {
+        STATE.historico.push({ data, sabor: '(sem detalhe)', tamanho: '', qtd: 1,
+          valor: parseFloat(r.total_amount||0), canal });
+      }
+    });
+
+    // Estoque real
+    if (Array.isArray(estq) && estq.length > 0) {
+      STATE.estoqueReal = estq.map(e => ({
+        ingrediente: e.desc_store_ingredient, grupo: e.grupo,
+        estoque: parseFloat(e.current_inventory||0), unidade: e.short_desc_unit_measure||'',
+        custo_unit: parseFloat(e.average_cost||0), estoque_min: parseFloat(e.minimium_stock||0),
+      }));
+    }
+
+    STATE.synced = true;
+    const msg = document.getElementById('saipos-status-msg');
+    if (msg) { msg.style.display='block'; msg.innerHTML=`<span style="color:#4ade80">✓ Cache carregado — ${vendas.length} vendas · última sync: ${status.ultima_sync}</span>`; }
+    document.getElementById('dot-saipos').className = 'sdot ok';
+    showToast(`✓ ${STATE.historico.length} registros do cache`, 'success');
+    processarHistorico(STATE.historico);
+    carregarEstoqueReal();
+    return true;
+
+  } catch(e) {
+    console.warn('Cache indisponível:', e.message);
+    return false;
+  }
+}
+
 async function syncSaipos() {
   if (_syncRunning) { showToast('Sincronização já em andamento...', 'info'); return; }
   _syncRunning = true;
 
-  // Lê config do config.js primeiro, depois campos da UI
-  const BC = window.BONITA_CONFIG?.saipos;
-  const gsUrl  = document.getElementById('cfg-saipos-url')?.value?.trim()  || BC?.gsUrl  || '';
-  const token  = document.getElementById('cfg-saipos-token')?.value?.trim() || BC?.token  || '';
-  const dias   = parseInt(document.getElementById('cfg-historico')?.value || 90);
+  const BC    = window.BONITA_CONFIG?.saipos;
+  const gsUrl = document.getElementById('cfg-saipos-url')?.value?.trim()  || BC?.gsUrl  || '';
+  const token = document.getElementById('cfg-saipos-token')?.value?.trim() || BC?.token  || '';
 
   if (!gsUrl || !token) {
     showToast('Configure o URL do proxy e o token em ⚙ Config', 'error');
-    carregarDadosDemo();
-    _syncRunning = false;
-    return;
+    _syncRunning = false; return;
   }
 
-  showToast('Conectando ao Saipos via proxy...', 'info');
+  const bearer = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+  showToast('Sincronizando delta com Saipos...', 'info');
   document.getElementById('dot-saipos').className = 'sdot warn';
 
   try {
-    const now = new Date();
-    const windows = [];
-    // Janelas de 7 dias
-    for (let i = 0; i < dias; i += 7) {
-      const end   = new Date(now); end.setDate(now.getDate() - i);
-      const start = new Date(now); start.setDate(now.getDate() - Math.min(i + 7, dias));
-      windows.push({ start, end });
-    }
+    // Delta sync via Apps Script (grava no Sheets)
+    const resp = await fetch(`${gsUrl}?endpoint=sync_delta&token=${encodeURIComponent(bearer)}`);
+    const result = await resp.json();
 
-    let allSales = [];
-    let allItems = [];
-
-    for (let w = 0; w < windows.length; w++) {
-      const { start, end } = windows[w];
-      showToast(`Janela ${w+1}/${windows.length}...`, 'info');
-
-      // 1) Pedidos
-      const sales = await fetchEndpointEstoque(gsUrl, token, 'search_sales', start, end);
-      allSales.push(...sales);
-
-      // 2) Itens (endpoint correto: sales_items com S)
-      try {
-        const itemsResp = await fetchEndpointEstoque(gsUrl, token, 'sales_items', start, end);
-        allItems.push(...itemsResp);
-      } catch(e) {
-        console.warn(`Janela ${w+1}: itens não carregados — ${e.message}`);
-      }
-
-      // Pausa entre janelas — evita saturar a API Saipos
-      if (w < windows.length - 1) await new Promise(r => setTimeout(r, 600));
-    }
-
-    if (!allSales.length) throw new Error('Nenhum pedido retornado');
-
-    // ── 3) Estoque atual real (search_ingredient_movement) ──
-    // API Saipos limita a 15 dias por consulta — usamos 14 para segurança
-    try {
-      showToast('Buscando estoque atual...', 'info');
-      const stockEnd   = new Date();
-      const stockStart = new Date(); stockStart.setDate(stockStart.getDate() - 14);
-
-      const movResp = await fetchEndpointEstoque(
-        gsUrl, token, 'search_ingredient_movement',
-        stockStart, stockEnd, 1000, 'date_movement'
-      );
-
-      if (movResp.length > 0) {
-        console.log('✓ Movimentações estoque:', movResp.length, '— 1ª:', movResp[0]);
-
-        // Indexa pelo ingrediente, pegando a movimentação mais recente
-        const stockMap = {};
-        movResp.forEach(mov => {
-          const ing = mov.ingredient;
-          if (!ing) return;
-          const id = ing.id_store_ingredient;
-          const dataMov = new Date(mov.date_movement || mov.created_at);
-          if (!stockMap[id] || dataMov > stockMap[id]._data) {
-            stockMap[id] = {
-              ingrediente:  ing.desc_store_ingredient,
-              grupo:        ing.group?.desc_store_group_ingredient || '',
-              estoque:      parseFloat(ing.current_inventory || 0),
-              unidade:      ing.short_desc_unit_measure || '',
-              custo_unit:   parseFloat(ing.average_cost || 0),
-              estoque_min:  parseFloat(ing.minimium_stock || 0),
-              ultima_mov:   mov.date_movement,
-              _data:        dataMov,
-            };
-          }
-        });
-
-        STATE.estoqueReal = Object.values(stockMap).map(s => {
-          delete s._data; return s;
-        });
-        console.log(`✓ Estoque real: ${STATE.estoqueReal.length} ingredientes únicos`);
-      }
-    } catch(e) {
-      console.warn('Estoque real indisponível:', e.message);
-    }
-
-    console.log(`✓ Pedidos: ${allSales.length} | Pacotes de itens: ${allItems.length}`);
-
-    // sales_items retorna agrupado por venda: [{id_sale, items:[{desc_sale_item, choices:[...]}]}]
-    // Indexa por id_sale
-    const itemsBySale = {};
-    allItems.forEach(pack => {
-      itemsBySale[pack.id_sale] = pack.items || [];
-    });
-
-    if (allItems[0]) {
-      console.log('✓ 1º pacote de itens:', allItems[0]);
-      if (allItems[0].items?.[0]) {
-        console.log('✓ 1º item:', allItems[0].items[0]);
-      }
-    }
-
-    // Monta histórico: uma entrada por sabor de cada item de cada pedido
-    STATE.historico = [];
-    allSales
-      .filter(r => r.canceled !== 'Y' && r.canceled !== true)
-      .forEach(r => {
-        const data = (r.created_at || r.shift_date || '').slice(0, 10);
-        if (!data) return;
-        const canal = r.partner_sale?.desc_partner_sale ||
-                      r.partner_sale?.partner_name      ||
-                      (parseInt(r.id_sale_type) === 1 ? 'Delivery' : 'Balcão');
-
-        const items = itemsBySale[r.id_sale] || [];
-
-        if (items.length > 0) {
-          items.forEach(item => {
-            // Cada item pode ter múltiplas choices (sabores)
-            // Para pizza: desc_sale_item = "Pizza Gigante" + choices = ["FRANGO CATUPIRY", "CALABRESA"]
-            const choices = (item.choices || []).filter(c => c.deleted !== 'Y');
-
-            if (choices.length > 0) {
-              // Pizza com sabores explícitos
-              choices.forEach(c => {
-                STATE.historico.push({
-                  data,
-                  sabor:   (c.desc_sale_item_choice || '').trim(),
-                  tamanho: extrairTamanho(item.desc_sale_item),
-                  qtd:     parseFloat(item.quantity || 1) / choices.length, // divide entre sabores
-                  valor:   parseFloat(item.unit_price || 0) + parseFloat(c.aditional_price || 0),
-                  produto: (item.desc_sale_item || '').split(':')[0].trim(),
-                  tipo:    parseInt(r.id_sale_type || 1),
-                  canal,
-                });
-              });
-            } else {
-              // Item sem choices — usa o nome do item direto (bebidas, sobremesas, etc.)
-              STATE.historico.push({
-                data,
-                sabor:   (item.desc_sale_item || '').split(':')[0].trim() || 'Sem nome',
-                tamanho: extrairTamanho(item.desc_sale_item),
-                qtd:     parseFloat(item.quantity || 1),
-                valor:   parseFloat(item.unit_price || 0),
-                produto: '',
-                tipo:    parseInt(r.id_sale_type || 1),
-                canal,
-              });
-            }
-          });
-        } else {
-          // Pedido sem itens carregados
-          STATE.historico.push({
-            data,
-            sabor:   '(itens não carregados)',
-            tamanho: '',
-            qtd:     1,
-            valor:   parseFloat(r.total_amount || 0),
-            tipo:    parseInt(r.id_sale_type || 1),
-            canal,
-          });
-        }
-      });
-
-    STATE.synced = true;
-    // Injeta os itens em cada pedido e salva para a aba Conferência
-    STATE.allSalesFull = allSales
-      .filter(r => r.canceled !== 'Y' && r.canceled !== true)
-      .map(r => ({ ...r, sale_items: itemsBySale[r.id_sale] || [] }))
-      .sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''));
-
-    document.getElementById('dot-saipos').className = 'sdot ok';
+    if (result.error) throw new Error(result.error);
 
     const msg = document.getElementById('saipos-status-msg');
     if (msg) {
       msg.style.display = 'block';
-      msg.innerHTML = `<span style="color:#4ade80">✓ ${STATE.historico.length} registros importados via proxy (${dias} dias)</span>`;
+      msg.innerHTML = `<span style="color:#4ade80">✓ Delta sync: +${result.vendas} vendas, +${result.itens} itens${result.erros?.length ? ' · ' + result.erros.length + ' aviso(s)' : ''}</span>`;
     }
-    showToast(`✓ ${STATE.historico.length} pedidos importados!`, 'success');
-    processarHistorico(STATE.historico);
+    showToast(`✓ Delta: +${result.vendas} vendas · carregando cache...`, 'success');
 
-    // Atualizar campos de config com os valores usados
-    const elUrl   = document.getElementById('cfg-saipos-url');
-    const elToken = document.getElementById('cfg-saipos-token');
-    const elId    = document.getElementById('cfg-saipos-id');
-    if (elUrl)   elUrl.value   = gsUrl;
-    if (elToken) elToken.value = token;
-    if (elId)    elId.value    = BC?.storeId || '';
+    // Após gravar no Sheets, lê tudo do cache atualizado
+    await carregarCache();
 
   } catch(e) {
-    console.warn('Saipos erro:', e.message);
+    console.warn('Sync erro:', e.message);
     document.getElementById('dot-saipos').className = 'sdot err';
-    const msg = document.getElementById('saipos-status-msg');
-    if (msg) {
-      msg.style.display = 'block';
-      msg.innerHTML = `<span style="color:var(--red)">⚠ Erro: ${e.message} — usando dados demo</span>`;
-    }
-    showToast(`Proxy indisponível (${e.message}) — carregando demo`, 'error');
-    carregarDadosDemo();
+    showToast(`Erro: ${e.message}`, 'error');
+  } finally {
+    _syncRunning = false;
+  }
+}
+
+async function syncFull() {
+  if (_syncRunning) { showToast('Sincronização já em andamento...', 'info'); return; }
+  _syncRunning = true;
+
+  const BC    = window.BONITA_CONFIG?.saipos;
+  const gsUrl = BC?.gsUrl || '';
+  const token = BC?.token || '';
+  const bearer = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+  const dias  = parseInt(document.getElementById('cfg-historico')?.value || 90);
+
+  showToast(`Reescrevendo ${dias} dias... (pode demorar 1-2 min)`, 'info');
+
+  try {
+    const resp = await fetch(`${gsUrl}?endpoint=sync_full&token=${encodeURIComponent(bearer)}&dias=${dias}`);
+    const result = await resp.json();
+    if (result.error) throw new Error(result.error);
+    showToast(`✓ Full sync: ${result.vendas} vendas, ${result.itens} itens`, 'success');
+    await carregarCache();
+  } catch(e) {
+    showToast(`Erro: ${e.message}`, 'error');
   } finally {
     _syncRunning = false;
   }
@@ -2046,15 +2009,31 @@ async function gerarRelatorioSemanal() {
 // ══════════════════════════════════════════
 // CONFIGURAÇÕES
 // ══════════════════════════════════════════
-function salvarSaipos() {
-  // Atualiza state com o que estiver nos campos (permite editar pelo usuário)
+async function salvarSaipos() {
   STATE.saipos.proxyUrl = document.getElementById('cfg-saipos-url').value || STATE.saipos.proxyUrl;
   STATE.saipos.token    = document.getElementById('cfg-saipos-token').value || STATE.saipos.token;
   STATE.saipos.storeId  = document.getElementById('cfg-saipos-id').value || STATE.saipos.storeId;
+
   const msg = document.getElementById('saipos-status-msg');
   msg.style.display = 'block';
-  msg.innerHTML = '<span style="color:var(--amber)">⏳ Testando conexão...</span>';
-  setTimeout(() => syncSaipos(), 300);
+  msg.innerHTML = '<span style="color:#fac800">⏳ Configurando planilha cache...</span>';
+
+  const gsUrl = STATE.saipos.proxyUrl;
+  try {
+    // Garante que a planilha existe
+    const setupResp = await fetch(`${gsUrl}?endpoint=setup`);
+    const setup = await setupResp.json();
+    if (setup.ok) {
+      msg.innerHTML = `<span style="color:#4ade80">✓ Planilha: ${setup.msg}</span>`;
+      showToast('Planilha configurada! Sincronizando...', 'success');
+      setTimeout(() => syncSaipos(), 500);
+    } else {
+      throw new Error(setup.error || 'Erro no setup');
+    }
+  } catch(e) {
+    msg.innerHTML = `<span style="color:var(--red)">✗ ${e.message}</span>`;
+    showToast('Erro: ' + e.message, 'error');
+  }
 }
 
 function toggleDayFlag(btn, groupId) {
@@ -6302,7 +6281,6 @@ function carregarEstoqueReal() {
 // INIT — adaptado para estoque.html
 // ══════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
-  // Preenche config com dados do BONITA_CONFIG se disponível
   const cfg = window.BONITA_CONFIG?.saipos;
   if (cfg) {
     const url = cfg.gsUrl || cfg.proxyUrl || cfg.baseUrl || '';
@@ -6310,20 +6288,21 @@ window.addEventListener('DOMContentLoaded', () => {
     if (cfg.token)    document.getElementById('cfg-saipos-token').value = cfg.token;
     if (cfg.storeId)  document.getElementById('cfg-saipos-id').value    = cfg.storeId;
   }
-  // Data header
   const now = new Date();
   const dias = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   const el = document.getElementById('dash-semana-desc');
-  if (el) el.textContent = `${dias[now.getDay()]}, ${now.getDate()} ${meses[now.getMonth()]} ${now.getFullYear()} · Clique em "↻ Sincronizar" para carregar`;
+  if (el) el.textContent = `${dias[now.getDay()]}, ${now.getDate()} ${meses[now.getMonth()]} ${now.getFullYear()}`;
   const dateInput = document.getElementById('semana-inicio');
   if (dateInput) dateInput.value = now.toISOString().slice(0,10);
-  // Carrega apenas dados locais (sem API)
-  // carregarDadosDemo(); // desativado — use o botão Sincronizar
-  // carregarEstoqueReal(); // desativado — dados do ESTOQUE_BONITA usados diretamente
-  carregarEstoqueReal(); // só renderiza tabela com dados hardcoded, sem API
+
+  // Dados locais sempre carregam imediatamente
+  carregarEstoqueReal();
   renderReceitasReais();
   renderWeekGrid();
+
+  // Tenta carregar cache do Sheets em background (sem bloquear a UI)
+  setTimeout(() => carregarCache(), 800);
 });
 </script>
 </body>

@@ -595,6 +595,25 @@ body.tv-mode main { padding: 0 !important; overflow: hidden; }
     <span id="fstatus" style="font-size:11px;color:var(--pm-muted);font-family:var(--pm-mono)"></span>
   </div>
   <div class="pm-info" id="info"></div>
+
+  <!-- EQUIPE -->
+  <div class="pm-cfg-title" style="margin-top:14px;border-top:1px solid var(--pm-border);padding-top:12px">equipe</div>
+  <div class="pm-row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
+    <div style="flex:1;min-width:220px">
+      <label style="display:block;margin-bottom:4px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--pm-muted)">Atendentes (não aparecem como entregador)</label>
+      <textarea id="cfg-atendentes" class="pm-inp" rows="3" style="width:100%;resize:vertical;font-size:11px" placeholder="Um nome por linha&#10;Ex: Roberta&#10;Ana"></textarea>
+      <div style="font-size:10px;color:var(--pm-muted);margin-top:3px">Um nome por linha · busca parcial (sem acento)</div>
+    </div>
+    <div style="flex:1;min-width:220px">
+      <label style="display:block;margin-bottom:4px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--pm-muted)">Entregador padrão (roteirização automática)</label>
+      <input id="cfg-entregador-padrao" class="pm-inp" type="text" placeholder="Ex: João V. Hansen" style="width:100%">
+      <div style="font-size:10px;color:var(--pm-muted);margin-top:3px">Usado quando o Saipos usa delivery-routing</div>
+    </div>
+  </div>
+  <div class="pm-row" style="margin-top:6px">
+    <button class="pm-btn pm-btn-primary" onclick="salvarEquipe()">💾 salvar equipe</button>
+    <span id="equipe-status" style="font-size:11px;color:var(--pm-muted);font-family:var(--pm-mono)"></span>
+  </div>
 </div>
 
 <!-- MODULE NAV -->
@@ -676,6 +695,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('gs-url').value = CONFIG.gsUrl;
   document.getElementById('tk').value     = CONFIG.token;
   document.getElementById('sid').value    = CONFIG.storeId;
+
+  // Carrega configurações de equipe do localStorage (sobrescreve os padrões do config.js)
+  carregarEquipe();
+
   // Se token e URL já estão configurados, conecta automaticamente
   if(CONFIG.gsUrl && CONFIG.token) conectar();
 });
@@ -703,6 +726,62 @@ setInterval(()=>{
 }, 1000);
 
 // Config toggle
+// ── EQUIPE — persiste em localStorage ─────────────────────
+function carregarEquipe() {
+  try {
+    const saved = localStorage.getItem('bonita_equipe');
+    if (saved) {
+      const eq = JSON.parse(saved);
+      // Sobrescreve os padrões do config.js com o que está salvo
+      if (eq.atendentes?.length)    CONFIG.atendentes       = eq.atendentes;
+      if (eq.entregadorPadrao)      CONFIG.entregadorPadrao = eq.entregadorPadrao;
+      if (eq.entregadores && Object.keys(eq.entregadores).length) {
+        // Merge — mantém os do config.js e adiciona os salvos
+        CONFIG.entregadores = { ...CONFIG.entregadores, ...eq.entregadores };
+      }
+    }
+  } catch(e) {}
+  // Preenche os campos da UI
+  const atel = document.getElementById('cfg-atendentes');
+  const epad = document.getElementById('cfg-entregador-padrao');
+  if (atel) atel.value = (CONFIG.atendentes || []).join('\n');
+  if (epad) epad.value = CONFIG.entregadorPadrao || '';
+}
+
+function salvarEquipe() {
+  const atelEl = document.getElementById('cfg-atendentes');
+  const epadEl = document.getElementById('cfg-entregador-padrao');
+  const statusEl = document.getElementById('equipe-status');
+
+  const atendentes = (atelEl?.value || '')
+    .split('\n')
+    .map(s => s.trim())
+    .filter(Boolean);
+  const entregadorPadrao = (epadEl?.value || '').trim();
+
+  // Atualiza CONFIG em memória imediatamente
+  CONFIG.atendentes       = atendentes;
+  CONFIG.entregadorPadrao = entregadorPadrao;
+
+  // Persiste no localStorage
+  try {
+    localStorage.setItem('bonita_equipe', JSON.stringify({
+      atendentes,
+      entregadorPadrao,
+      entregadores: CONFIG.entregadores, // salva mapeamentos de motoboys também
+      savedAt: new Date().toISOString(),
+    }));
+    if (statusEl) {
+      statusEl.textContent = `✓ salvo · ${atendentes.length} atendente(s) · padrão: ${entregadorPadrao||'(nenhum)'}`;
+      setTimeout(() => { if(statusEl) statusEl.textContent = ''; }, 3000);
+    }
+    // Re-processa os pedidos com a nova configuração
+    if (S.orders.length) renderSection(S.activeSection);
+  } catch(e) {
+    if (statusEl) statusEl.textContent = '✗ erro ao salvar: ' + e.message;
+  }
+}
+
 function toggleCfg(btn){
   const s = document.getElementById('pm-cfg');
   const open = s.classList.toggle('open');
@@ -860,11 +939,40 @@ function loadDemo(){
 async function fetchEndpoint(gsUrl, token, endpoint, start, end, limit=1000){
   const fmt = d=>d.toISOString().slice(0,19);
   const params = new URLSearchParams({token, endpoint, col:'created_at', start:fmt(start), end:fmt(end), limit});
-  const resp = await fetch(`${gsUrl}?${params}`);
-  if(!resp.ok) throw new Error(`${endpoint} HTTP ${resp.status}`);
-  const json = await resp.json();
-  if(json.error) throw new Error(`Saipos ${endpoint}: ${json.error}`);
-  return Array.isArray(json) ? json : [];
+  const url = `${gsUrl}?${params}`;
+
+  // Retry com backoff em caso de 504/502/timeout do Saipos
+  for(let attempt=1; attempt<=3; attempt++){
+    const resp = await fetch(url);
+
+    if(resp.status===504 || resp.status===502){
+      const body = await resp.text().catch(()=>'');
+      if(attempt<3){
+        const wait = 1500 * attempt; // 1.5s, 3s
+        console.warn(`⚠ ${endpoint} HTTP ${resp.status} — tentativa ${attempt}/3, aguardando ${wait}ms`);
+        await new Promise(r=>setTimeout(r,wait));
+        continue;
+      }
+      throw new Error(`${endpoint} HTTP ${resp.status}: ${body.slice(0,200)}`);
+    }
+
+    if(!resp.ok) throw new Error(`${endpoint} HTTP ${resp.status}`);
+    const json = await resp.json();
+
+    if(json && typeof json==='object' && !Array.isArray(json) && json.error){
+      const errStr = String(json.error);
+      // PGRST003 = timeout do banco — vale retry
+      if((errStr.includes('PGRST003')||errStr.includes('Timed out')) && attempt<3){
+        const wait = 1500 * attempt;
+        console.warn(`⚠ ${endpoint} PGRST003 — tentativa ${attempt}/3, aguardando ${wait}ms`);
+        await new Promise(r=>setTimeout(r,wait));
+        continue;
+      }
+      throw new Error(`Saipos ${endpoint}: ${errStr}`);
+    }
+
+    return Array.isArray(json) ? json : [];
+  }
 }
 
 async function conectar(){
@@ -1251,58 +1359,119 @@ function renderTV(){
 
   function tvDtag(v,tgt){ const d=v-tgt; if(Math.abs(d)<.5)return`<span style="position:absolute;top:8px;right:8px;font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(255,240,214,.08);color:var(--pm-muted)">≈ meta</span>`; if(d>0)return`<span style="position:absolute;top:8px;right:8px;font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(201,64,64,.12);color:var(--pm-bad)">+${d.toFixed(1)}</span>`; return`<span style="position:absolute;top:8px;right:8px;font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(45,158,107,.12);color:var(--pm-ok)">${d.toFixed(1)}</span>`; }
 
+  // Últimos 10 pedidos
+  const ultimos10=[...delivery].sort((a,b)=>b.orderTime-a.orderTime).slice(0,10);
+  const maxT10=Math.max(...(ultimos10.length?ultimos10.map(o=>o.total):[45]),45);
+
   el.innerHTML=`
-  <div class="pm-tv-header">
-    <div>
-      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#FFF0D6">bonità <span style="color:#D6453D">·</span> painel operacional</div>
-      <div style="font-size:10px;color:var(--pm-muted);margin-top:2px">${S.live?'🟢 dados ao vivo · atualiza a cada 2 min':'⚪ modo demonstração'}</div>
-    </div>
-    <div style="text-align:right">
-      <div class="pm-tv-clock" id="tv-clock">${now.toLocaleTimeString('pt-BR')}</div>
-      <div class="pm-tv-date" id="tv-date">${now.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</div>
-    </div>
-  </div>
+  <div style="display:flex;flex-direction:column;height:100%;background:#013524">
 
-  <div style="padding:0 1.4rem;margin-bottom:1rem">
-    <div class="pm-tv-kpis">
-      <div class="pm-tv-kpi r">${tvDtag(aC,CONFIG.metaCozinha)}<div class="pm-tv-kpi-lbl">🍕 Montagem</div><div class="pm-tv-kpi-val" style="color:var(--pm-red)">${aC>0?aC.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · meta ${CONFIG.metaCozinha}min</div></div>
-      <div class="pm-tv-kpi p">${tvDtag(aAg,5)}<div class="pm-tv-kpi-lbl">⏳ Ag. Entrega</div><div class="pm-tv-kpi-val" style="color:var(--pm-purple)">${aAg>0?aAg.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · pizza esperando</div></div>
-      <div class="pm-tv-kpi o">${tvDtag(aE,CONFIG.metaEntrega)}<div class="pm-tv-kpi-lbl">🛵 Saiu p/ Entrega</div><div class="pm-tv-kpi-val" style="color:var(--pm-orange)">${aE>0?aE.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · motoboy na rua · meta ${CONFIG.metaEntrega}min</div></div>
-      <div class="pm-tv-kpi g">${tvDtag(aT,CONFIG.metaTotal)}<div class="pm-tv-kpi-lbl">⏱ Total</div><div class="pm-tv-kpi-val" style="color:var(--pm-gold)">${aT>0?aT.toFixed(1):'—'}</div><div class="pm-tv-kpi-unit">min · meta ${CONFIG.metaTotal}min · ${delivery.length} pedidos</div></div>
+    <!-- HEADER -->
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem 1.2rem;background:rgba(1,42,29,.9);border-bottom:1px solid rgba(255,240,214,.1);flex-shrink:0">
+      <div>
+        <div style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:#FFF0D6">bonità <span style="color:#D6453D">·</span> painel operacional</div>
+        <div style="font-size:9px;color:var(--pm-muted)">${S.live?'🟢 ao vivo · atualiza a cada 2 min':'⚪ modo demonstração'}</div>
+      </div>
+      <div style="text-align:right">
+        <div id="tv-clock" style="font-family:'Playfair Display',serif;font-size:1.9rem;font-weight:700;color:#FFF0D6;line-height:1">${now.toLocaleTimeString('pt-BR')}</div>
+        <div id="tv-date" style="font-size:10px;color:var(--pm-muted);margin-top:2px">${now.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</div>
+      </div>
     </div>
 
-    <div class="pm-tv-sla" style="margin-bottom:1rem">
-      <div class="pm-tv-sla-card" style="border-top:3px solid var(--pm-ok)"><div class="pm-tv-sla-pct" style="color:var(--pm-ok)">${s30.toFixed(1)}%</div><div class="pm-tv-sla-lbl">≤ 30min — excelente</div></div>
-      <div class="pm-tv-sla-card" style="border-top:3px solid var(--pm-warn)"><div class="pm-tv-sla-pct" style="color:var(--pm-warn)">${s45.toFixed(1)}%</div><div class="pm-tv-sla-lbl">31–45min — ok</div></div>
-      <div class="pm-tv-sla-card" style="border-top:3px solid var(--pm-bad)"><div class="pm-tv-sla-pct" style="color:var(--pm-bad)">${sBad.toFixed(1)}%</div><div class="pm-tv-sla-lbl">> 45min — crítico</div></div>
+    <!-- KPIs (linha) -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:.5rem 1.2rem;flex-shrink:0">
+      <div style="background:var(--pm-surface);border:1px solid var(--pm-border);border-top:3px solid var(--pm-red);border-radius:7px;padding:.5rem .8rem;position:relative">${tvDtag(aC,CONFIG.metaCozinha)}<div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--pm-muted);margin-bottom:.2rem">🍕 montagem</div><div style="font-family:'Playfair Display',serif;font-size:2.2rem;font-weight:700;color:var(--pm-red);line-height:1">${aC>0?aC.toFixed(1):'—'}</div><div style="font-size:9px;color:var(--pm-muted);margin-top:.15rem">min · meta ${CONFIG.metaCozinha}min</div></div>
+      <div style="background:var(--pm-surface);border:1px solid var(--pm-border);border-top:3px solid var(--pm-purple);border-radius:7px;padding:.5rem .8rem;position:relative">${tvDtag(aAg,5)}<div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--pm-muted);margin-bottom:.2rem">⏳ ag. entrega</div><div style="font-family:'Playfair Display',serif;font-size:2.2rem;font-weight:700;color:var(--pm-purple);line-height:1">${aAg>0?aAg.toFixed(1):'—'}</div><div style="font-size:9px;color:var(--pm-muted);margin-top:.15rem">min · pizza esperando</div></div>
+      <div style="background:var(--pm-surface);border:1px solid var(--pm-border);border-top:3px solid var(--pm-orange);border-radius:7px;padding:.5rem .8rem;position:relative">${tvDtag(aE,CONFIG.metaEntrega)}<div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--pm-muted);margin-bottom:.2rem">🛵 entrega</div><div style="font-family:'Playfair Display',serif;font-size:2.2rem;font-weight:700;color:var(--pm-orange);line-height:1">${aE>0?aE.toFixed(1):'—'}</div><div style="font-size:9px;color:var(--pm-muted);margin-top:.15rem">min · meta ${CONFIG.metaEntrega}min</div></div>
+      <div style="background:var(--pm-surface);border:1px solid var(--pm-border);border-top:3px solid var(--pm-gold);border-radius:7px;padding:.5rem .8rem;position:relative">${tvDtag(aT,CONFIG.metaTotal)}<div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--pm-muted);margin-bottom:.2rem">⏱ total</div><div style="font-family:'Playfair Display',serif;font-size:2.2rem;font-weight:700;color:var(--pm-gold);line-height:1">${aT>0?aT.toFixed(1):'—'}</div><div style="font-size:9px;color:var(--pm-muted);margin-top:.15rem">min · meta ${CONFIG.metaTotal}min · ${delivery.length}p</div></div>
     </div>
 
-    <div class="pm-tv-body">
-      <div class="pm-tv-card">
-        <div class="pm-tv-card-title">média por dia da semana</div>
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
-          ${DAYS_PT.map((d,i)=>{const a=byDay[i],av=avg(a),col=av<=30?'var(--pm-ok)':av<=45?'var(--pm-warn)':'var(--pm-bad)';const motos2=new Set(S.orders.filter(o=>o.tipo===1&&o.weekday===i&&o.entregador!=='—').map(o=>o.entregador));return`<div class="pm-wc"><div class="pm-wn ${i===todayWd?'today':''}">${d}</div><div class="pm-wv" style="color:${col}">${av?av.toFixed(0)+'m':'—'}</div><div class="pm-wb" style="background:${col};width:${Math.round(av/mxA*80)}%;min-width:2px;margin:3px auto"></div><div class="pm-wct">${a.length}p</div>${motos2.size>0?`<div class="pm-wct" style="color:var(--pm-orange)">🛵${motos2.size}</div>`:''}</div>`;}).join('')}
+    <!-- BODY: 3 colunas -->
+    <div style="display:grid;grid-template-columns:220px 1fr 1.6fr;gap:6px;padding:0 1.2rem .5rem;flex:1;min-height:0">
+
+      <!-- COL 1: SLA + Entregadores + Dias -->
+      <div style="display:flex;flex-direction:column;gap:6px;min-height:0">
+
+        <!-- SLA -->
+        <div style="background:var(--pm-surface);border:1px solid var(--pm-border);border-radius:7px;padding:.6rem .8rem;flex-shrink:0">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--pm-muted);margin-bottom:.5rem">sla hoje</div>
+          <div style="display:flex;align-items:center;gap:8px;padding:.3rem 0;border-left:3px solid var(--pm-ok);padding-left:.5rem;margin-bottom:4px">
+            <div style="font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:var(--pm-ok)">${s30.toFixed(0)}%</div>
+            <div style="font-size:9px;color:var(--pm-muted)">≤30min<br><span style="color:var(--pm-ok)">excelente</span></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:.3rem 0;border-left:3px solid var(--pm-warn);padding-left:.5rem;margin-bottom:4px">
+            <div style="font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:var(--pm-warn)">${s45.toFixed(0)}%</div>
+            <div style="font-size:9px;color:var(--pm-muted)">31–45min<br><span style="color:var(--pm-warn)">ok</span></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:.3rem 0;border-left:3px solid var(--pm-bad);padding-left:.5rem">
+            <div style="font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:var(--pm-bad)">${sBad.toFixed(0)}%</div>
+            <div style="font-size:9px;color:var(--pm-muted)">>45min<br><span style="color:var(--pm-bad)">crítico</span></div>
+          </div>
+        </div>
+
+        <!-- Entregadores -->
+        <div style="background:var(--pm-surface);border:1px solid var(--pm-border);border-radius:7px;padding:.6rem .8rem;flex:1;overflow-y:auto">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--pm-muted);margin-bottom:.5rem">entregadores hoje</div>
+          ${motos.length?motos.map(([name,ords])=>{
+            const cz=avg(ords.map(o=>o.cozinha)),ae=avg(ords.map(o=>o.entrega)),at=avg(ords.map(o=>o.total)),col=sColor(at);
+            const slaOk=ords.filter(o=>o.total<=45).length;
+            return`<div style="padding:.4rem 0;border-bottom:1px solid rgba(255,240,214,.06)">
+              <div style="font-size:12px;font-weight:600;color:#FFF0D6;margin-bottom:3px">🛵 ${name} <span style="font-size:10px;color:var(--pm-muted);font-weight:400">${ords.length}p</span></div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center">
+                <div><div style="color:var(--pm-red);font-size:13px;font-weight:600;font-family:var(--pm-mono)">${cz.toFixed(0)}m</div><div style="font-size:8px;color:var(--pm-muted)">coz.</div></div>
+                <div><div style="color:var(--pm-orange);font-size:13px;font-weight:600;font-family:var(--pm-mono)">${ae.toFixed(0)}m</div><div style="font-size:8px;color:var(--pm-muted)">entr.</div></div>
+                <div><div style="color:${col};font-size:13px;font-weight:600;font-family:var(--pm-mono)">${at.toFixed(0)}m</div><div style="font-size:8px;color:var(--pm-muted)">total</div></div>
+                <div><div style="color:${slaOk===ords.length?'var(--pm-ok)':'var(--pm-warn)'};font-size:13px;font-weight:600;font-family:var(--pm-mono)">${Math.round(slaOk/ords.length*100)}%</div><div style="font-size:8px;color:var(--pm-muted)">sla</div></div>
+              </div>
+            </div>`;
+          }).join(''):'<div style="font-size:11px;color:var(--pm-muted)">Nenhuma entrega hoje</div>'}
+        </div>
+
+        <!-- Dias semana -->
+        <div style="background:var(--pm-surface);border:1px solid var(--pm-border);border-radius:7px;padding:.6rem .8rem;flex-shrink:0">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--pm-muted);margin-bottom:.4rem">média por dia</div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center">
+            ${DAYS_PT.map((d,i)=>{
+              const a=byDay[i],av=avg(a),col=av<=30?'var(--pm-ok)':av<=45?'var(--pm-warn)':'var(--pm-bad)';
+              return`<div>
+                <div style="font-size:9px;color:${i===todayWd?'#FFF0D6':'var(--pm-muted)'};font-weight:${i===todayWd?700:400}">${d}</div>
+                <div style="font-size:11px;color:${col};font-family:var(--pm-mono)">${av?av.toFixed(0)+'m':'—'}</div>
+                <div style="background:${col};height:3px;border-radius:2px;width:${Math.round((av||0)/mxA*100)}%;margin:2px auto"></div>
+                <div style="font-size:8px;color:var(--pm-muted)">${a.length}p</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+
+      </div>
+
+      <!-- COL 2: Últimos 10 pedidos (ocupa 2 colunas) -->
+      <div style="grid-column:span 2;background:var(--pm-surface);border:1px solid var(--pm-border);border-radius:7px;padding:.6rem .8rem;display:flex;flex-direction:column;min-height:0">
+        <div style="font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--pm-muted);margin-bottom:.5rem;flex-shrink:0">últimos ${ultimos10.length} pedidos de hoje</div>
+        <div style="flex:1;overflow-y:auto">
+          ${ultimos10.length?ultimos10.map(o=>{
+            const totalW=Math.round(o.total/maxT10*100);
+            const czW=Math.round(o.cozinha/o.total*totalW);
+            const agW=Math.round((o.aguardando||0)/o.total*totalW);
+            const enW=totalW-czW-agW;
+            const col=sColor(o.total);
+            return`<div style="display:flex;align-items:center;gap:8px;padding:.28rem .4rem;background:rgba(255,240,214,.03);border-radius:5px;margin-bottom:3px;font-family:var(--pm-mono);font-size:11px">
+              <span style="color:var(--pm-muted);min-width:54px">${o.id}</span>
+              <span style="color:var(--pm-muted);min-width:44px">${o.orderTime.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>
+              <div style="flex:1;display:flex;align-items:center">
+                <div style="width:${totalW}%;display:flex;gap:2px">
+                  <div style="background:var(--pm-red);flex:${czW||1};height:15px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;color:rgba(255,240,214,.85);padding:0 3px;overflow:hidden;white-space:nowrap">${o.cozinha}m</div>
+                  ${o.aguardando>0?`<div style="background:var(--pm-purple);flex:${agW||1};height:15px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;color:rgba(255,240,214,.85);padding:0 3px">${o.aguardando}m</div>`:''}
+                  <div style="background:var(--pm-orange);flex:${enW||1};height:15px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;color:rgba(255,240,214,.85);padding:0 3px;overflow:hidden;white-space:nowrap">${o.entrega}m</div>
+                </div>
+              </div>
+              <strong style="color:${col};min-width:34px;text-align:right">${o.total}m</strong>
+              <span style="color:var(--pm-muted);min-width:68px;text-align:right;font-size:10px">${o.entregador==='—'?'':o.entregador.split(' ')[0]}</span>
+            </div>`;
+          }).join(''):'<div style="padding:16px;color:var(--pm-muted);font-size:12px">Nenhum pedido hoje ainda</div>'}
         </div>
       </div>
-      <div class="pm-tv-card">
-        <div class="pm-tv-card-title">entregadores hoje</div>
-        ${motos.length?motos.map(([name,ords])=>{const ae=avg(ords.map(o=>o.entrega)),at=avg(ords.map(o=>o.total)),col=sColor(at);return`<div class="pm-tv-moto-row"><div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500">🛵 ${name} <span style="font-size:10px;color:var(--pm-muted)">${ords.length}p</span></div><div style="display:flex;gap:12px;font-family:var(--pm-mono);font-size:12px"><div style="text-align:center"><div style="color:var(--pm-orange);font-size:15px;font-weight:600">${ae.toFixed(0)}m</div><div style="font-size:9px;color:var(--pm-muted)">entrega</div></div><div style="text-align:center"><div style="color:${col};font-size:15px;font-weight:600">${at.toFixed(0)}m</div><div style="font-size:9px;color:var(--pm-muted)">total</div></div></div></div>`;}).join(''):'<div style="font-size:12px;color:var(--pm-muted);padding:.5rem">Nenhuma entrega hoje ainda</div>'}
-      </div>
-    </div>
 
-    <div>
-      <div class="pm-tv-card-title" style="margin-bottom:.6rem">últimos pedidos de hoje</div>
-      ${ultimos.length?(()=>{
-        const maxT=Math.max(...ultimos.map(o=>o.total),45);
-        return ultimos.map(o=>{
-          const totalW=Math.round(o.total/maxT*100);
-          const czW=Math.round(o.cozinha/o.total*totalW);
-          const agW=Math.round(o.aguardando/o.total*totalW);
-          const enW=totalW-czW-agW;
-          const col=sColor(o.total);
-          return`<div class="pm-tv-order-row"><span style="color:var(--pm-muted);min-width:60px">${o.id}</span><span style="color:var(--pm-muted);min-width:50px">${o.orderTime.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span><div style="flex:1;display:flex;gap:3px;align-items:center"><div style="display:flex;gap:3px;width:${totalW}%"><div class="pm-tv-order-seg" style="background:var(--pm-red);flex:${czW}">${o.cozinha}m</div>${o.aguardando>0?`<div class="pm-tv-order-seg" style="background:var(--pm-purple);flex:${agW}">${o.aguardando}m</div>`:''}<div class="pm-tv-order-seg" style="background:var(--pm-orange);flex:${enW||1}">${o.entrega}m</div></div></div><strong style="color:${col};min-width:40px;text-align:right">${o.total}m</strong><span style="color:var(--pm-muted);min-width:60px">${o.entregador==='—'?'':o.entregador.split(' ')[0]}</span></div>`;
-        }).join('');
-      })():'<div style="font-size:12px;color:var(--pm-muted)">Nenhum pedido de delivery hoje ainda</div>'}
     </div>
   </div>`;
 }

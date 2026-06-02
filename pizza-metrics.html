@@ -494,7 +494,7 @@ tr:hover td { background: var(--pm-surface2); }
 .pm-tv-sla-lbl { font-size: 11px; color: var(--pm-muted); margin-top: .3rem; }
 .pm-tv-moto-row { display: flex; align-items: center; justify-content: space-between; padding: .5rem .6rem; background: var(--pm-surface2); border-radius: 6px; margin-bottom: 6px; }
 .pm-tv-order-row { display: flex; align-items: center; gap: 10px; padding: .4rem .7rem; background: var(--pm-surface); border-radius: 6px; margin-bottom: 5px; font-family: var(--pm-mono); font-size: 11px; }
-.pm-tv-order-seg { height: 16px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: rgba(255,240,214,.8); min-width: 20px; padding: 0 4px; }
+.pm-tv-order-seg { height: 16px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: rgba(255,240,214,.8); min-width: 20px; padding: 0 4px; overflow: hidden; white-space: nowrap; }
 
 /* ── FOOTER ── */
 .pm-footer {
@@ -762,15 +762,15 @@ function cOpts(yL='min'){
   };
 }
 
-// Resolve nome do entregador a partir do telefone
 function resolveNomeMoto(raw){
   if(!raw) return null;
   const s = raw.trim().replace(/@.*$/, '');
+  // Ignora valores automáticos do sistema — não são entregadores reais
+  const skip = ['integration-api-int-sale','kds','chatbot','sistema','api','delivery-routing','delivery_routing','routing'];
+  if(skip.some(x=>s.toLowerCase().includes(x))) return null;
   const tel = s.replace(/\D/g, '');
   if(CONFIG.entregadores[tel]) return CONFIG.entregadores[tel];
   if(/^\d{10,11}$/.test(tel)) return `(${tel.slice(0,2)}) ${tel.slice(2,7)}-${tel.slice(7)}`;
-  const skip = ['integration-api-int-sale','kds','chatbot','sistema','api'];
-  if(skip.some(x=>s.toLowerCase().includes(x))) return null;
   return s || null;
 }
 
@@ -944,14 +944,48 @@ function mapOrder(r, histMap){
     }
     const tot=cz+ag+en; if(tot<1) return null;
 
-    // Entregador
+    // Entregador — ordem de prioridade:
+    // 1. delivery_man do pedido (campo direto da Saipos)
+    // 2. histMap entregadorRaw (status histories, excluindo delivery-routing)
+    // 3. telefone extraído do campo notes (iFood inclui dados no notes)
     let entregador='—', _tel=null;
-    if(r.delivery_man?.delivery_man_name){ entregador=r.delivery_man.delivery_man_name; }
-    else if(hist?.entregadorRaw){
-      const nome=resolveNomeMoto(hist.entregadorRaw);
-      if(nome) entregador=nome;
-      const tel=hist.entregadorRaw.replace(/@.*$/,'').replace(/\D/g,'');
+
+    // 1. Campo delivery_man direto
+    if(r.delivery_man?.delivery_man_name){
+      const nm = r.delivery_man.delivery_man_name.trim();
+      if(nm && !['delivery-routing','delivery_routing'].includes(nm.toLowerCase()))
+        entregador = nm;
+    }
+
+    // 2. Histmap (se ainda não resolveu)
+    if(entregador==='—' && hist?.entregadorRaw){
+      const nome = resolveNomeMoto(hist.entregadorRaw);
+      if(nome){ entregador=nome; }
+      const tel = hist.entregadorRaw.replace(/@.*$/,'').replace(/\D/g,'');
       if(/^\d{10,11}$/.test(tel)) _tel=tel;
+    }
+
+    // 3. Tenta extrair telefone do campo notes (iFood inclui "Telefone: 11999999999")
+    if(entregador==='—' && r.notes){
+      const telMatch = r.notes.match(/[Tt]elefone[:\s]+(\d[\d\s\-()]{8,14}\d)/);
+      if(telMatch){
+        const tel = telMatch[1].replace(/\D/g,'');
+        if(/^\d{10,11}$/.test(tel)){
+          _tel = tel;
+          const nome = resolveNomeMoto(tel);
+          if(nome) entregador = nome;
+        }
+      }
+    }
+
+    const hoje = new Date().toDateString();
+    if(created.toDateString()===hoje && entregador==='—'){
+      console.log('🔍 Pedido sem entregador:', r.id_sale, {
+        delivery_man: r.delivery_man,
+        notes_trecho: r.notes?.slice(0,150),
+        entregadorRaw: hist?.entregadorRaw,
+        delivery: r.delivery,
+      });
     }
 
     // Canal — usa partner_sale.partner_name ou desc_sale_type ou fallback por tipo
@@ -1261,7 +1295,29 @@ function renderTV(){
 
     <div>
       <div class="pm-tv-card-title" style="margin-bottom:.6rem">últimos pedidos de hoje</div>
-      ${ultimos.length?ultimos.map(o=>{const czW=Math.round(o.cozinha/o.total*100),agW=Math.round(o.aguardando/o.total*100),enW=100-czW-agW,col=sColor(o.total);return`<div class="pm-tv-order-row"><span style="color:var(--pm-muted);min-width:60px">${o.id}</span><span style="color:var(--pm-muted);min-width:50px">${o.orderTime.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span><div style="flex:1;display:flex;gap:3px"><div class="pm-tv-order-seg" style="background:var(--pm-red);width:${czW}%">${o.cozinha}m</div>${o.aguardando>0?`<div class="pm-tv-order-seg" style="background:var(--pm-purple);width:${agW}%">${o.aguardando}m</div>`:''}<div class="pm-tv-order-seg" style="background:var(--pm-orange);width:${enW}%">${o.entrega}m</div></div><strong style="color:${col};min-width:40px;text-align:right">${o.total}m</strong><span style="color:var(--pm-muted);min-width:60px">${o.entregador==='—'?'':o.entregador.split(' ')[0]}</span></div>`;}).join(''):'<div style="font-size:12px;color:var(--pm-muted)">Nenhum pedido de delivery hoje ainda</div>'}
+      ${ultimos.length?(()=>{
+        const maxT = Math.max(...ultimos.map(o=>o.total), 45); // mínimo 45min para escala
+        return ultimos.map(o=>{
+          const totalW = Math.round(o.total/maxT*100);           // largura proporcional ao tempo absoluto
+          const czW    = Math.round(o.cozinha/o.total*totalW);   // cozinha dentro da barra total
+          const agW    = Math.round(o.aguardando/o.total*totalW);// espera dentro da barra total
+          const enW    = totalW - czW - agW;                     // entrega = resto
+          const col    = sColor(o.total);
+          return`<div class="pm-tv-order-row">
+            <span style="color:var(--pm-muted);min-width:60px">${o.id}</span>
+            <span style="color:var(--pm-muted);min-width:50px">${o.orderTime.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>
+            <div style="flex:1;display:flex;gap:3px;align-items:center">
+              <div style="display:flex;gap:3px;width:${totalW}%">
+                <div class="pm-tv-order-seg" style="background:var(--pm-red);flex:${czW}">${o.cozinha}m</div>
+                ${o.aguardando>0?`<div class="pm-tv-order-seg" style="background:var(--pm-purple);flex:${agW}">${o.aguardando}m</div>`:''}
+                <div class="pm-tv-order-seg" style="background:var(--pm-orange);flex:${enW||1}">${o.entrega}m</div>
+              </div>
+            </div>
+            <strong style="color:${col};min-width:40px;text-align:right">${o.total}m</strong>
+            <span style="color:var(--pm-muted);min-width:60px">${o.entregador==='—'?'':o.entregador.split(' ')[0]}</span>
+          </div>`;
+        }).join('');
+      })():'<div style="font-size:12px;color:var(--pm-muted)">Nenhum pedido de delivery hoje ainda</div>'}
     </div>
   </div>`;
 }

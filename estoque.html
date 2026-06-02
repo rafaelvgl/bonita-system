@@ -837,7 +837,7 @@
 
 <footer class="bonita-footer">
   <div class="footer-diamonds"><div class="fd"></div><div class="fd"></div><div class="fd"></div></div>
-  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-06-02.2</span></div>
+  <div class="footer-text">Bonità Pizzaria · Estoque &amp; Vendas · Penápolis, SP · <span style="color:var(--blue);opacity:.7">v2026-06-02.3</span></div>
 </footer>
 
 <div id="toast-container"></div>
@@ -1750,7 +1750,7 @@ async function gerarProjecao() {
   msgsEl.scrollTop = msgsEl.scrollHeight;
 
   try {
-    const reply = await askClaude(prompt, AI_CONTEXTS.projecao, 1000);
+    const reply = await askClaude(prompt, getAIContext('projecao'), 1000);
     MSG_HISTORY.projecao.push({ role: 'assistant', content: reply });
     document.getElementById('loading-projecao')?.remove();
     msgsEl.innerHTML += `<div class="msg msg-ai">${reply.replace(/\n/g,'<br>')}</div>`;
@@ -1836,7 +1836,7 @@ Projeção próximos 7 dias: ${projStr}
 Identifique: itens abaixo do mínimo, o que vai faltar, sugestão de compra urgente.`;
 
   try {
-    const reply = await askClaude(prompt, AI_CONTEXTS.estoque, 1000);
+    const reply = await askClaude(prompt, getAIContext('estoque'), 1000);
     document.getElementById('loading-estoque')?.remove();
     msgsEl.innerHTML += `<div class="msg msg-ai">${reply.replace(/\n/g,'<br>')}</div>`;
     msgsEl.scrollTop = msgsEl.scrollHeight;

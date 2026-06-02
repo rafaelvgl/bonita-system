@@ -660,7 +660,14 @@ const CONFIG = {
     '18997685948':'João V. Hansen',
     '18998259966':'Roberta Rodrigues',
     '44988436823':'Rafael Vendrame'
-  }
+  },
+  // Atendentes — disparam pedidos mas NÃO são entregadores
+  // Quando aparecerem como entregador, são ignorados
+  atendentes: ['Roberta Rodrigues','Roberta','roberta'],
+  // Entregador padrão para pedidos com roteirização automática
+  // (delivery-routing + "Entrega feita pelo restaurante")
+  // Deixe '' para mostrar como 'Não identificado'
+  entregadorPadrao: 'João V. Hansen',
 };
 
 // Pré-preenche campos com as configurações do config.js
@@ -895,14 +902,18 @@ function buildHistMap(histories){
     h.histories.forEach(st=>{
       const desc=(st.desc_store_sale_status||'').trim();
       const dur=parseFloat(st.duration_time_seconds||0);
+      const userName = st.user?.full_name||st.user?.username||'';
       if(desc==='Montagem')                cz+=dur;
       else if(desc==='Aguardando entrega') ag+=dur;
-      else if(desc==='Saiu para entrega'){ en+=dur; if(st.user?.full_name&&!entregadorRaw) entregadorRaw=st.user.full_name; }
+      else if(desc==='Saiu para entrega'){ en+=dur; if(userName&&!entregadorRaw) entregadorRaw=userName; }
+      // "Entregue" tem o telefone real do motoboy — prioridade máxima
+      else if(desc==='Entregue'){ if(userName) entregadorRaw=userName; }
       else {
         const dl=desc.toLowerCase();
         if(/montagem|cozinha|preparo/i.test(dl))   cz+=dur;
         else if(/aguardando|esperando/i.test(dl))  ag+=dur;
-        else if(/saiu|rota|motoboy/i.test(dl)){ en+=dur; if(st.user?.full_name&&!entregadorRaw) entregadorRaw=st.user.full_name; }
+        else if(/saiu|rota|motoboy/i.test(dl)){ en+=dur; if(userName&&!entregadorRaw) entregadorRaw=userName; }
+        else if(/entregue|entregou/i.test(dl)){ if(userName) entregadorRaw=userName; } // sobrescreve com o real
       }
     });
     if(cz>0||ag>0||en>0) map[h.id_sale]={ cz:Math.round(cz/60), ag:Math.round(ag/60), en:Math.round(en/60), entregadorRaw };
@@ -946,26 +957,29 @@ function mapOrder(r, histMap){
 
     // Entregador — ordem de prioridade:
     // 1. delivery_man do pedido (campo direto da Saipos)
-    // 2. histMap entregadorRaw (status histories, excluindo delivery-routing)
-    // 3. telefone extraído do campo notes (iFood inclui dados no notes)
+    // 2. histMap entregadorRaw (status histories, excluindo delivery-routing e atendentes)
+    // 3. telefone extraído do campo notes
+    // 4. fallback para entregadorPadrao se "Entrega feita pelo restaurante"
     let entregador='—', _tel=null;
 
     // 1. Campo delivery_man direto
     if(r.delivery_man?.delivery_man_name){
       const nm = r.delivery_man.delivery_man_name.trim();
-      if(nm && !['delivery-routing','delivery_routing'].includes(nm.toLowerCase()))
+      const isAtendente = CONFIG.atendentes.some(a=>nm.toLowerCase().includes(a.toLowerCase()));
+      if(nm && !['delivery-routing','delivery_routing'].includes(nm.toLowerCase()) && !isAtendente)
         entregador = nm;
     }
 
-    // 2. Histmap (se ainda não resolveu)
+    // 2. Histmap
     if(entregador==='—' && hist?.entregadorRaw){
       const nome = resolveNomeMoto(hist.entregadorRaw);
-      if(nome){ entregador=nome; }
+      const isAtendente = nome && CONFIG.atendentes.some(a=>nome.toLowerCase().includes(a.toLowerCase()));
+      if(nome && !isAtendente){ entregador=nome; }
       const tel = hist.entregadorRaw.replace(/@.*$/,'').replace(/\D/g,'');
       if(/^\d{10,11}$/.test(tel)) _tel=tel;
     }
 
-    // 3. Tenta extrair telefone do campo notes (iFood inclui "Telefone: 11999999999")
+    // 3. Telefone do campo notes
     if(entregador==='—' && r.notes){
       const telMatch = r.notes.match(/[Tt]elefone[:\s]+(\d[\d\s\-()]{8,14}\d)/);
       if(telMatch){
@@ -978,14 +992,11 @@ function mapOrder(r, histMap){
       }
     }
 
-    const hoje = new Date().toDateString();
-    if(created.toDateString()===hoje && entregador==='—'){
-      console.log('🔍 Pedido sem entregador:', r.id_sale, {
-        delivery_man: r.delivery_man,
-        notes_trecho: r.notes?.slice(0,150),
-        entregadorRaw: hist?.entregadorRaw,
-        delivery: r.delivery,
-      });
+    // 4. Fallback — roteirização automática + entrega pelo restaurante
+    if(entregador==='—' && tipo===1 &&
+       r.notes?.includes('Entrega feita pelo restaurante') &&
+       CONFIG.entregadorPadrao){
+      entregador = CONFIG.entregadorPadrao;
     }
 
     // Canal — usa partner_sale.partner_name ou desc_sale_type ou fallback por tipo

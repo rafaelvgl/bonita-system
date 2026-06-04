@@ -1041,19 +1041,38 @@ function buildHistMap(histories){
     h.histories.forEach(st=>{
       const desc=(st.desc_store_sale_status||'').trim();
       const dur=parseFloat(st.duration_time_seconds||0);
-      if(desc==='Montagem')                cz+=dur;
-      else if(desc==='Aguardando entrega') ag+=dur;
-      else if(desc==='Saiu para entrega'){ en+=dur; const uN=st.user?.full_name||st.user?.username||''; if(uN&&!entregadorRaw) entregadorRaw=uN; }
-      else if(desc==='Entregue'){ const uN=st.user?.full_name||st.user?.username||''; if(uN) entregadorRaw=uN; }
-      else {
+      const uN=st.user?.full_name||st.user?.username||'';
+      if(desc==='Montagem'){
+        cz+=dur;
+      } else if(desc==='Aguardando entrega'){
+        ag+=dur;
+      } else if(desc==='Saiu para entrega'){
+        // Não usa duration aqui — será calculado pelo timestamp real
+        if(uN&&!entregadorRaw) entregadorRaw=uN;
+      } else if(desc==='Entregue'){
+        // O tempo real de entrega é a duração do status "Entregue"
+        // (de quando "Saiu para entrega" até chegar ao cliente)
+        en+=dur;
+        if(uN) entregadorRaw=uN;
+      } else {
         const dl=desc.toLowerCase();
-        if(/montagem|cozinha|preparo/i.test(dl))   cz+=dur;
-        else if(/aguardando|esperando/i.test(dl))  ag+=dur;
-        else if(/saiu|rota|motoboy/i.test(dl)){ en+=dur; const uN=st.user?.full_name||st.user?.username||''; if(uN&&!entregadorRaw) entregadorRaw=uN; }
-        else if(/entregue|entregou/i.test(dl)){ const uN=st.user?.full_name||st.user?.username||''; if(uN) entregadorRaw=uN; }
+        if(/montagem|cozinha|preparo/i.test(dl))        cz+=dur;
+        else if(/aguardando|esperando/i.test(dl))       ag+=dur;
+        else if(/saiu|rota|motoboy/i.test(dl)){
+          if(uN&&!entregadorRaw) entregadorRaw=uN;
+        }
+        else if(/entregue|entregou/i.test(dl)){
+          en+=dur;
+          if(uN) entregadorRaw=uN;
+        }
       }
     });
-    if(cz>0||ag>0||en>0) map[h.id_sale]={ cz:Math.round(cz/60), ag:Math.round(ag/60), en:Math.round(en/60), entregadorRaw };
+    if(cz>0||ag>0||en>0) map[h.id_sale]={
+      cz: Math.round(cz/60),
+      ag: Math.round(ag/60),
+      en: Math.round(en/60),
+      entregadorRaw
+    };
   });
   return map;
 }

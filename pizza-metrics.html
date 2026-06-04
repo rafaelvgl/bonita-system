@@ -1037,42 +1037,36 @@ function buildHistMap(histories){
   const map={};
   histories.forEach(h=>{
     if(!h.id_sale||!h.histories) return;
-    let cz=0,ag=0,en=0,entregadorRaw=null;
+    let entregadorRaw=null;
+
+    // Coleta timestamps de cada status
+    const ts={};
     h.histories.forEach(st=>{
       const desc=(st.desc_store_sale_status||'').trim();
-      const dur=parseFloat(st.duration_time_seconds||0);
+      const t=new Date(st.created_at||st.updated_at||0).getTime();
+      if(!ts[desc]||t<ts[desc]) ts[desc]=t; // primeiro timestamp de cada status
       const uN=st.user?.full_name||st.user?.username||'';
-      if(desc==='Montagem'){
-        cz+=dur;
-      } else if(desc==='Aguardando entrega'){
-        ag+=dur;
-      } else if(desc==='Saiu para entrega'){
-        // Não usa duration aqui — será calculado pelo timestamp real
-        if(uN&&!entregadorRaw) entregadorRaw=uN;
-      } else if(desc==='Entregue'){
-        // O tempo real de entrega é a duração do status "Entregue"
-        // (de quando "Saiu para entrega" até chegar ao cliente)
-        en+=dur;
-        if(uN) entregadorRaw=uN;
-      } else {
-        const dl=desc.toLowerCase();
-        if(/montagem|cozinha|preparo/i.test(dl))        cz+=dur;
-        else if(/aguardando|esperando/i.test(dl))       ag+=dur;
-        else if(/saiu|rota|motoboy/i.test(dl)){
-          if(uN&&!entregadorRaw) entregadorRaw=uN;
-        }
-        else if(/entregue|entregou/i.test(dl)){
-          en+=dur;
-          if(uN) entregadorRaw=uN;
-        }
-      }
+      if(desc==='Saiu para entrega'&&uN&&!entregadorRaw) entregadorRaw=uN;
+      if(desc==='Entregue'&&uN) entregadorRaw=uN;
     });
-    if(cz>0||ag>0||en>0) map[h.id_sale]={
-      cz: Math.round(cz/60),
-      ag: Math.round(ag/60),
-      en: Math.round(en/60),
-      entregadorRaw
-    };
+
+    // Calcula tempos pela diferença de timestamps
+    const tMontagem   = ts['Montagem']         || 0;
+    const tAguardando = ts['Aguardando entrega']|| ts['Montagem']||0;
+    const tSaiu       = ts['Saiu para entrega'] || ts['Aguardando entrega']||ts['Montagem']||0;
+    const tEntregue   = ts['Entregue']          || 0;
+
+    if(!tMontagem||!tEntregue) return; // pedido incompleto
+
+    const czSec = (tAguardando - tMontagem)   / 1000;
+    const agSec = (tSaiu       - tAguardando) / 1000;
+    const enSec = (tEntregue   - tSaiu)       / 1000;
+
+    const cz = Math.max(0, Math.round(czSec/60));
+    const ag = Math.max(0, Math.round(agSec/60));
+    const en = Math.max(0, Math.round(enSec/60));
+
+    if(cz+ag+en > 0) map[h.id_sale] = { cz, ag, en, entregadorRaw };
   });
   return map;
 }

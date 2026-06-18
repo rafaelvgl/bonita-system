@@ -1225,8 +1225,18 @@ async function carregarCache() {
       });
     }
 
+    // Dedup por id_sale — o delta sync pode gravar mais de uma linha para o
+    // mesmo pedido na aba "vendas" (ex: quando o status muda de "Saiu para
+    // entrega" para "Entregue" e o Apps Script grava uma nova linha em vez
+    // de atualizar a existente). Sem isso, o pedido aparece 2x na lista e os
+    // totais (ex: R$64,36 → R$128,72) ficam dobrados. Mantemos a última
+    // ocorrência de cada id_sale (a mais recente).
+    const vendasPorId = {};
+    vendas.forEach(r => { if (r.id_sale) vendasPorId[r.id_sale] = r; });
+    const vendasUnicas = Object.values(vendasPorId);
+
     // Monta allSalesFull e historico
-    STATE.allSalesFull = vendas
+    STATE.allSalesFull = vendasUnicas
       .filter(r => r.canceled !== 'Y' && r.canceled !== true)
       .map(r => ({ ...r, sale_items: itemsBySale[r.id_sale] || [] }))
       .sort((a,b) => String(b.created_at).localeCompare(String(a.created_at)));
